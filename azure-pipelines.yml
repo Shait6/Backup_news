@@ -1,0 +1,69 @@
+trigger:
+  - main
+
+parameters:
+- name: subscriptionId
+  type: string
+  default: ''
+- name: location
+  type: string
+  values:
+    - westeurope
+    - northeurope
+    - swedencentral
+    - germanywestcentral
+  default: westeurope
+- name: enableBackup
+  type: string
+  values:
+    - 'true'
+    - 'false'
+  default: 'true'
+  displayName: 'Enable VM Backup'
+- name: backupFrequency
+  type: string
+  values:
+    - 'Daily'
+    - 'Weekly'
+  default: 'Daily'
+  displayName: 'Backup Frequency'
+
+variables:
+  - name: resourceGroupName
+    value: 'rg-vmbackup-${{ parameters.location }}'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: Deploy
+  jobs:
+  - job: DeployBackupInfrastructure
+    condition: eq(${{ parameters.enableBackup }}, true)
+    steps:
+    - task: AzurePowerShell@5
+      inputs:
+        azureSubscription: 'Azure-ServiceConnection'
+        ScriptType: 'InlineScript'
+        Inline: |
+          # Create resource group if it doesn't exist
+          $rg = Get-AzResourceGroup -Name "$(resourceGroupName)" -Location "${{ parameters.location }}" -ErrorAction SilentlyContinue
+          if (-not $rg) {
+              New-AzResourceGroup -Name "$(resourceGroupName)" -Location "${{ parameters.location }}"
+          }
+        azurePowerShellVersion: 'LatestVersion'
+
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'Azure-ServiceConnection'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          # Deploy Bicep template
+          az deployment group create \
+            --name "vmbackup-deployment-$(Build.BuildId)" \
+            --resource-group "$(resourceGroupName)" \
+            --template-file main.bicep \
+            --parameters @main.parameters.json \
+            --parameters location="${{ parameters.location }}" \
+            --parameters backupFrequency="${{ parameters.backupFrequency }}"
