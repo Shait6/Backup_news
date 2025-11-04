@@ -24,48 +24,30 @@ param backupFrequency string = 'Daily'
 ])
 param publicNetworkAccess string = 'Enabled'
 
-resource recoveryServicesVault 'Microsoft.RecoveryServices/vaults@2023-04-01' = {
-  name: vaultName
-  location: location
-  sku: {
-    name: 'RS0'
-    tier: 'Standard'
-  }
-  properties: {
+// Deploy Recovery Services Vault using a module
+module vaultModule './modules/recoveryVault.bicep' = {
+  name: 'recoveryVaultModule'
+  params: {
+    vaultName: vaultName
+    location: location
     publicNetworkAccess: publicNetworkAccess
-    restoreSettings: {
-      crossSubscriptionRestoreSettings: {
-        crossSubscriptionRestoreState: 'Enabled'
-      }
-    }
   }
 }
 
-resource backupPolicy 'Microsoft.RecoveryServices/vaults/backupPolicies@2023-04-01' = {
-  parent: recoveryServicesVault
-  name: backupPolicyName
-  properties: {
-    backupManagementType: 'AzureIaasVM'
-    schedulePolicy: {
-      schedulePolicyType: 'SimpleSchedulePolicy'
-      scheduleRunFrequency: backupFrequency
-      scheduleRunTimes: backupScheduleRunTimes
-      scheduleRunDays: backupFrequency == 'Weekly' ? weeklyBackupDaysOfWeek : null
-    }
-    retentionPolicy: {
-      retentionPolicyType: 'LongTermRetentionPolicy'
-      dailySchedule: {
-        retentionTimes: backupScheduleRunTimes
-        retentionDuration: {
-          count: backupRetentionDays
-          durationType: 'Days'
-        }
-      }
-    }
-    timeZone: 'UTC'
+// Deploy Backup Policy using a module; depends on vault
+module policyModule './modules/backupPolicy.bicep' = {
+  name: 'backupPolicyModule'
+  params: {
+    vaultName: vaultName
+    backupPolicyName: backupPolicyName
+    backupFrequency: backupFrequency
+    backupScheduleRunTimes: backupScheduleRunTimes
+    weeklyBackupDaysOfWeek: weeklyBackupDaysOfWeek
+    backupRetentionDays: backupRetentionDays
   }
+  dependsOn: [vaultModule]
 }
 
-// Output the vault ID and backup policy ID for use in the Azure Policy
-output vaultId string = recoveryServicesVault.id
-output policyId string = backupPolicy.id
+// Export module outputs
+output vaultId string = vaultModule.outputs.vaultId
+output policyId string = policyModule.outputs.backupPolicyId

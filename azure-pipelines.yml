@@ -1,6 +1,3 @@
-trigger:
-  - main
-
 parameters:
 - name: subscriptionId
   type: string
@@ -13,6 +10,18 @@ parameters:
     - swedencentral
     - germanywestcentral
   default: westeurope
+- name: resourceGroupName
+  type: string
+  displayName: 'Resource Group Name'
+  default: 'rg-vmbackup-default'
+- name: vaultName
+  type: string
+  displayName: 'Recovery Services Vault Name'
+  default: 'rsv-backup-default'
+- name: backupPolicyName
+  type: string
+  displayName: 'Backup Policy Name'
+  default: 'DefaultPolicy'
 - name: enableBackup
   type: string
   values:
@@ -28,42 +37,56 @@ parameters:
   default: 'Daily'
   displayName: 'Backup Frequency'
 
-variables:
-  - name: resourceGroupName
-    value: 'rg-vmbackup-${{ parameters.location }}'
-
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'windows-latest'
 
 stages:
 - stage: Deploy
   jobs:
-  - job: DeployBackupInfrastructure
-    condition: eq(${{ parameters.enableBackup }}, true)
+  - job: PrepareParameters
+    displayName: 'Prepare Parameters'
     steps:
     - task: AzurePowerShell@5
       inputs:
         azureSubscription: 'Azure-ServiceConnection'
-        ScriptType: 'InlineScript'
-        Inline: |
-          # Create resource group if it doesn't exist
-          $rg = Get-AzResourceGroup -Name "$(resourceGroupName)" -Location "${{ parameters.location }}" -ErrorAction SilentlyContinue
-          if (-not $rg) {
-              New-AzResourceGroup -Name "$(resourceGroupName)" -Location "${{ parameters.location }}"
-          }
+        ScriptType: 'FilePath'
+        ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Set-DeploymentParameters.ps1'
+        ScriptArguments: >
+          -Location "${{ parameters.location }}"
+          -SubscriptionId "${{ parameters.subscriptionId }}"
+          -VaultName "${{ parameters.vaultName }}"
+          -BackupPolicyName "${{ parameters.backupPolicyName }}"
+          -BackupRetentionDays ${{ parameters.backupRetentionDays }}
         azurePowerShellVersion: 'LatestVersion'
 
-    - task: AzureCLI@2
+  - job: CreateResourceGroup
+    displayName: 'Create Resource Group'
+    dependsOn: PrepareParameters
+    steps:
+    - task: AzurePowerShell@5
       inputs:
         azureSubscription: 'Azure-ServiceConnection'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          # Deploy Bicep template
-          az deployment group create \
-            --name "vmbackup-deployment-$(Build.BuildId)" \
-            --resource-group "$(resourceGroupName)" \
-            --template-file main.bicep \
-            --parameters @main.parameters.json \
-            --parameters location="${{ parameters.location }}" \
-            --parameters backupFrequency="${{ parameters.backupFrequency }}"
+        ScriptType: 'FilePath'
+        ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Create-ResourceGroup.ps1'
+        ScriptArguments: >
+          -ResourceGroupName "${{ parameters.resourceGroupName }}"
+          -Location "${{ parameters.location }}"
+        azurePowerShellVersion: 'LatestVersion'
+
+  - job: DeployBackupInfrastructure
+    displayName: 'Deploy Backup Infrastructure'
+    dependsOn: CreateResourceGroup
+    condition: eq(${{ parameters.enableBackup }}, 'true')
+    steps:
+    - task: AzurePowerShell@5
+      inputs:
+        azureSubscription: 'Azure-ServiceConnection'
+        ScriptType: 'FilePath'
+        ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Deploy-Backup.ps1'
+        ScriptArguments: >
+          -ResourceGroupName "${{ parameters.resourceGroupName }}"
+          -Location "${{ parameters.location }}"
+          -VaultName "${{ parameters.vaultName }}"
+          -BackupPolicyName "${{ parameters.backupPolicyName }}"
+          -BackupFrequency "${{ parameters.backupFrequency }}"
+        azurePowerShellVersion: 'LatestVersion'
