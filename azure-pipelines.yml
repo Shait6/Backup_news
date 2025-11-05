@@ -2,6 +2,15 @@ parameters:
 - name: subscriptionId
   type: string
   default: ''
+- name: managementGroupId
+  type: string
+  default: ''
+- name: vmTagName
+  type: string
+  default: 'backup'
+- name: vmTagValue
+  type: string
+  default: 'true'
 - name: location
   type: string
   values:
@@ -89,4 +98,22 @@ stages:
           -VaultName "${{ parameters.vaultName }}"
           -BackupPolicyName "${{ parameters.backupPolicyName }}"
           -BackupFrequency "${{ parameters.backupFrequency }}"
+        azurePowerShellVersion: 'LatestVersion'
+
+  - job: DeployAuditPolicy
+    displayName: 'Deploy Audit Policy (audit VMs without backup)'
+    dependsOn: DeployBackupInfrastructure
+    condition: always()
+    steps:
+    - task: AzurePowerShell@5
+      inputs:
+        azureSubscription: 'Azure-ServiceConnection'
+        ScriptType: 'FilePath'
+        ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Deploy-AuditPolicy.ps1'
+        ScriptArguments: >
+          -ManagementGroupId "${{ parameters.managementGroupId }}" \
+          -PolicyName "${{ parameters.vaultName }}-audit-vm-backup-policy" \
+          -PolicyAssignmentName "${{ parameters.vaultName }}-audit-vm-backup-assignment" \
+          -VmTagName "${{ parameters.vmTagName }}" \
+          -VmTagValue "${{ parameters.vmTagValue }}"
         azurePowerShellVersion: 'LatestVersion'

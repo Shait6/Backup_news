@@ -181,6 +181,33 @@ Enable-AzRecoveryServicesBackupProtection `
 
 Save this script as `Enable-VMBackup.ps1` in the `scripts` folder and run as needed.
 
+## Audit Policy for VM Backup (management group scope, tag-based)
+
+This solution includes an optional management-group-scoped Azure Policy that audits virtual machines which are tagged to require backup but do not have Azure Backup protection enabled. The policy is deployed in audit-only mode and does not change resources.
+
+What it does:
+- Scans virtual machines across all subscriptions under the specified management group
+- Targets only VMs that have a specific tag (by default `backup=true`)
+- Flags (audit) VMs that do not have a corresponding Recovery Services protected item
+- Helps identify workloads that need backup enabled
+
+How it's deployed:
+- The pipeline includes a job `DeployAuditPolicy` that runs after the backup infrastructure deployment. It deploys a custom policy definition and assigns it at the management group scope you provide.
+- You can also run the deployment manually with PowerShell (example):
+
+```powershell
+.\scripts\Deploy-AuditPolicy.ps1 -ManagementGroupId <your-management-group-id> `
+   -PolicyName "<policy-name>" `
+   -PolicyAssignmentName "<assignment-name>" `
+   -VmTagName "backup" `
+   -VmTagValue "true"
+```
+
+Notes and next steps:
+- The current implementation is audit-only. If you want the policy to automatically enable backup for non-protected VMs, the Microsoft pattern uses a DeployIfNotExists remediation with a managed identity and automation (see Microsoft docs). That approach is opt-in, more intrusive, and requires a managed identity with sufficient permissions—we can add this as an extension.
+- The audit policy helps produce compliance reports and can be used in alerts, workbooks or the Azure Policy compliance dashboard to track unprotected VMs.
+- Ensure the service principal or service connection used by the pipeline has permission to create policy definitions and assignments at the management group (typically Owner or Policy Contributor on the management group).
+
 ## Files Structure
 
 - `main.bicep`: Main infrastructure as code template
