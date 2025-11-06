@@ -47,7 +47,7 @@ parameters:
   displayName: 'Backup Frequency'
 - name: backupRetentionDays
   type: number
-  default: 14
+  default: '14'
   displayName: 'Backup Retention Days'
 pool:
   vmImage: 'windows-latest'
