@@ -45,7 +45,10 @@ parameters:
     - 'Weekly'
   default: 'Daily'
   displayName: 'Backup Frequency'
-
+- name: backupRetentionDays
+  type: number
+  default: 14
+  displayName: 'Backup Retention Days'
 pool:
   vmImage: 'windows-latest'
 
@@ -57,7 +60,7 @@ stages:
     steps:
     - task: AzurePowerShell@5
       inputs:
-        azureSubscription: 'Azure-ServiceConnection'
+        azureSubscription: 'bicep_deploy_SC'
         ScriptType: 'FilePath'
         ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Set-DeploymentParameters.ps1'
         ScriptArguments: >
@@ -74,7 +77,7 @@ stages:
     steps:
     - task: AzurePowerShell@5
       inputs:
-        azureSubscription: 'Azure-ServiceConnection'
+        azureSubscription: 'bicep_deploy_SC'
         ScriptType: 'FilePath'
         ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Create-ResourceGroup.ps1'
         ScriptArguments: >
@@ -89,7 +92,7 @@ stages:
     steps:
     - task: AzurePowerShell@5
       inputs:
-        azureSubscription: 'Azure-ServiceConnection'
+        azureSubscription: 'bicep_deploy_SC'
         ScriptType: 'FilePath'
         ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Deploy-Backup.ps1'
         ScriptArguments: >
@@ -107,7 +110,7 @@ stages:
     steps:
     - task: AzurePowerShell@5
       inputs:
-        azureSubscription: 'Azure-ServiceConnection'
+        azureSubscription: 'bicep_deploy_SC'
         ScriptType: 'FilePath'
         ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Deploy-AuditPolicy.ps1'
         ScriptArguments: >
