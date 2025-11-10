@@ -12,7 +12,7 @@ param(
     [string]$BackupPolicyName,
     
     [Parameter(Mandatory=$true)]
-    [string]$BackupFrequency
+    [string]$BackupFrequency,
     
     [Parameter(Mandatory=$false)]
     [string]$VaultSkuName = 'RS0',

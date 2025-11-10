@@ -19,7 +19,7 @@ param(
     [array]$WeeklyBackupDaysOfWeek = @("Sunday", "Wednesday"),
 
     [Parameter(Mandatory=$false)]
-    [array]$BackupScheduleRunTimes = @("2023-12-31T01:00:00Z")
+    [array]$BackupScheduleRunTimes = @("2023-12-31T01:00:00Z"),
     
     [Parameter(Mandatory=$false)]
     [string]$VaultSkuName = 'RS0',
