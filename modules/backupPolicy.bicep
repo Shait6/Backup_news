@@ -2,10 +2,11 @@
 param vaultName string
 @description('Name of the backup policy')
 param backupPolicyName string
-@description('Backup frequency: Daily or Weekly')
+@description('Backup frequency: Daily, Weekly, or Both')
 @allowed([
   'Daily'
   'Weekly'
+  'Both'
 ])
 param backupFrequency string = 'Daily'
 @description('Backup run times (UTC)')
@@ -20,16 +21,17 @@ resource existingVault 'Microsoft.RecoveryServices/vaults@2025-02-01' existing =
   name: vaultName
 }
 
-resource backupPolicy 'Microsoft.RecoveryServices/vaults/backupPolicies@2023-04-01' = {
+// Create daily policy when requested (or when 'Both' selected)
+resource backupPolicyDaily 'Microsoft.RecoveryServices/vaults/backupPolicies@2023-04-01' = if (backupFrequency == 'Daily' || backupFrequency == 'Both') {
   parent: existingVault
-  name: backupPolicyName
+  name: backupFrequency == 'Both' ? '${backupPolicyName}-daily' : backupPolicyName
   properties: {
     backupManagementType: 'AzureIaasVM'
     schedulePolicy: {
       schedulePolicyType: 'SimpleSchedulePolicy'
-      scheduleRunFrequency: backupFrequency
+      scheduleRunFrequency: 'Daily'
       scheduleRunTimes: backupScheduleRunTimes
-      scheduleRunDays: backupFrequency == 'Weekly' ? weeklyBackupDaysOfWeek : null
+      scheduleRunDays: null
     }
     retentionPolicy: {
       retentionPolicyType: 'LongTermRetentionPolicy'
@@ -45,5 +47,32 @@ resource backupPolicy 'Microsoft.RecoveryServices/vaults/backupPolicies@2023-04-
   }
 }
 
-output backupPolicyId string = backupPolicy.id
-output backupPolicyName string = backupPolicy.name
+// Create weekly policy when requested (or when 'Both' selected)
+resource backupPolicyWeekly 'Microsoft.RecoveryServices/vaults/backupPolicies@2023-04-01' = if (backupFrequency == 'Weekly' || backupFrequency == 'Both') {
+  parent: existingVault
+  name: backupFrequency == 'Both' ? '${backupPolicyName}-weekly' : backupPolicyName
+  properties: {
+    backupManagementType: 'AzureIaasVM'
+    schedulePolicy: {
+      schedulePolicyType: 'SimpleSchedulePolicy'
+      scheduleRunFrequency: 'Weekly'
+      scheduleRunTimes: backupScheduleRunTimes
+      scheduleRunDays: weeklyBackupDaysOfWeek
+    }
+    retentionPolicy: {
+      retentionPolicyType: 'LongTermRetentionPolicy'
+      dailySchedule: {
+        retentionTimes: backupScheduleRunTimes
+        retentionDuration: {
+          count: backupRetentionDays
+          durationType: 'Days'
+        }
+      }
+    }
+    timeZone: 'UTC'
+  }
+}
+
+output backupPolicyIds array = backupFrequency == 'Both' ? [backupPolicyDaily.id, backupPolicyWeekly.id] : (backupFrequency == 'Daily' ? [backupPolicyDaily.id] : (backupFrequency == 'Weekly' ? [backupPolicyWeekly.id] : []))
+
+output backupPolicyNames array = backupFrequency == 'Both' ? [backupPolicyDaily.name, backupPolicyWeekly.name] : (backupFrequency == 'Daily' ? [backupPolicyDaily.name] : (backupFrequency == 'Weekly' ? [backupPolicyWeekly.name] : []))

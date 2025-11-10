@@ -20,6 +20,12 @@ param(
 
     [Parameter(Mandatory=$false)]
     [array]$BackupScheduleRunTimes = @("2023-12-31T01:00:00Z")
+    
+    [Parameter(Mandatory=$false)]
+    [string]$VaultSkuName = 'RS0',
+
+    [Parameter(Mandatory=$false)]
+    [string]$VaultSkuTier = 'Standard'
 )
 
 # Create parameter hashtable
@@ -30,6 +36,9 @@ $parameters = @{
     backupRetentionDays = $BackupRetentionDays
     weeklyBackupDaysOfWeek = $WeeklyBackupDaysOfWeek
     backupScheduleRunTimes = $BackupScheduleRunTimes
+    vaultSkuName = $VaultSkuName
+    vaultSkuTier = $VaultSkuTier
+    
 }
 
 # Convert to JSON

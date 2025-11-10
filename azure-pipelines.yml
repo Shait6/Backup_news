@@ -27,6 +27,15 @@ parameters:
   type: string
   displayName: 'Recovery Services Vault Name'
   default: 'rsv-backup-default'
+- name: vaultSkuName
+  type: string
+  displayName: 'Recovery Services Vault SKU Name'
+  default: 'RS0'
+- name: vaultSkuTier
+  type: string
+  displayName: 'Recovery Services Vault SKU Tier'
+  default: 'Standard'
+  
 - name: backupPolicyName
   type: string
   displayName: 'Backup Policy Name'
@@ -43,12 +52,31 @@ parameters:
   values:
     - 'Daily'
     - 'Weekly'
+    - 'Both'
   default: 'Daily'
   displayName: 'Backup Frequency'
 - name: backupRetentionDays
   type: number
   default: '14'
   displayName: 'Backup Retention Days'
+- name: enableAutoRemediation
+  type: string
+  values:
+    - 'true'
+    - 'false'
+  default: 'false'
+  displayName: 'Enable Auto-Remediation (DeployIfNotExists)'
+- name: createVault
+  type: string
+  values:
+    - 'true'
+    - 'false'
+  default: 'false'
+  displayName: 'Create Recovery Services Vault if not exists'
+- name: vaultResourceGroup
+  type: string
+  default: ''
+  displayName: 'Vault Resource Group (if creating vault)'
 pool:
   vmImage: 'windows-latest'
 
@@ -69,6 +97,8 @@ stages:
           -VaultName "${{ parameters.vaultName }}"
           -BackupPolicyName "${{ parameters.backupPolicyName }}"
           -BackupRetentionDays ${{ parameters.backupRetentionDays }}
+          -VaultSkuName "${{ parameters.vaultSkuName }}" \
+          -VaultSkuTier "${{ parameters.vaultSkuTier }}"
         azurePowerShellVersion: 'LatestVersion'
 
   - job: CreateResourceGroup
@@ -101,22 +131,31 @@ stages:
           -VaultName "${{ parameters.vaultName }}"
           -BackupPolicyName "${{ parameters.backupPolicyName }}"
           -BackupFrequency "${{ parameters.backupFrequency }}"
+          -VaultSkuName "${{ parameters.vaultSkuName }}" \
+          -VaultSkuTier "${{ parameters.vaultSkuTier }}"
         azurePowerShellVersion: 'LatestVersion'
 
-  - job: DeployAuditPolicy
-    displayName: 'Deploy Audit Policy (audit VMs without backup)'
+    
+
+  
+
+  - job: DeployAutoEnablePolicy
+    displayName: 'Deploy Auto-Enable Policy (DeployIfNotExists)'
     dependsOn: DeployBackupInfrastructure
-    condition: always()
+    condition: eq(${{ parameters.enableAutoRemediation }}, 'true')
     steps:
     - task: AzurePowerShell@5
       inputs:
         azureSubscription: 'bicep_deploy_SC'
         ScriptType: 'FilePath'
-        ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Deploy-AuditPolicy.ps1'
+        ScriptPath: '$(System.DefaultWorkingDirectory)/scripts/Deploy-AutoEnablePolicySubscription.ps1'
         ScriptArguments: >
-          -ManagementGroupId "${{ parameters.managementGroupId }}" \
-          -PolicyName "${{ parameters.vaultName }}-audit-vm-backup-policy" \
-          -PolicyAssignmentName "${{ parameters.vaultName }}-audit-vm-backup-assignment" \
+          -SubscriptionId "${{ parameters.subscriptionId }}" \
+          -Location "${{ parameters.location }}" \
           -VmTagName "${{ parameters.vmTagName }}" \
-          -VmTagValue "${{ parameters.vmTagValue }}"
+          -VmTagValue "${{ parameters.vmTagValue }}" \
+          -BackupPolicyName "${{ parameters.backupPolicyName }}" \
+          -VaultName "${{ parameters.vaultName }}" \
+          -VaultResourceGroup "${{ parameters.vaultResourceGroup }}" \
+          -CreateVault "${{ parameters.createVault }}"
         azurePowerShellVersion: 'LatestVersion'

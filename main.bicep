@@ -14,8 +14,9 @@ param weeklyBackupDaysOfWeek array = [
 @allowed([
   'Daily'
   'Weekly'
+  'Both'
 ])
-@description('Backup frequency - choose Daily or Weekly')
+@description('Backup frequency - choose Daily, Weekly or Both')
 param backupFrequency string = 'Daily'
 
 @allowed([
@@ -23,6 +24,11 @@ param backupFrequency string = 'Daily'
   'Disabled'
 ])
 param publicNetworkAccess string = 'Enabled'
+@description('Recovery Services Vault SKU name (e.g. RS0)')
+param vaultSkuName string = 'RS0'
+@description('Recovery Services Vault SKU tier (e.g. Standard)')
+param vaultSkuTier string = 'Standard'
+// Recommended replication: GRS — set the vault replication manually after creation if needed.
 
 // Deploy Recovery Services Vault using a module
 module vaultModule './modules/recoveryVault.bicep' = {
@@ -31,6 +37,8 @@ module vaultModule './modules/recoveryVault.bicep' = {
     vaultName: vaultName
     location: location
     publicNetworkAccess: publicNetworkAccess
+    skuName: vaultSkuName
+    skuTier: vaultSkuTier
   }
 }
 
@@ -50,4 +58,5 @@ module policyModule './modules/backupPolicy.bicep' = {
 
 // Export module outputs
 output vaultId string = vaultModule.outputs.vaultId
-output policyId string = policyModule.outputs.backupPolicyId
+output backupPolicyIds array = policyModule.outputs.backupPolicyIds
+output backupPolicyNames array = policyModule.outputs.backupPolicyNames

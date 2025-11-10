@@ -1,222 +1,122 @@
-# Azure VM Backup Automation
+# Azure VM Backup Automation (short)
 
-This solution provides an automated way to deploy and configure VM backup infrastructure across multiple subscriptions in an Azure tenant using Azure Recovery Services Vault and Azure DevOps pipelines. It supports both automated and manual VM backup enablement for flexibility.
+Purpose
+- Deploy Recovery Services Vault and backup policy to a subscription, then optionally audit and auto-enable backup for tagged VMs.
 
-## Features
+Prerequisites
+- Azure subscription where the deployment will run (Owner/Contributor or equivalent RBAC).
+- Azure DevOps service connection with access to the target subscription.
 
-- Automated deployment of Recovery Services Vault and backup policies
-- Support for both daily and weekly backup schedules
-- Flexible retention periods with default 30-day retention
-- Modular Bicep templates for maintainability
-- Multi-region support (West Europe, North Europe, Sweden Central, Germany West Central)
-- Optional public network access control
-- Cross-subscription restore capability
-- PowerShell scripts for automated VM backup enablement
-- Manual backup option through Azure Portal
+Quick usage
+1. Run the pipeline and set:
+   - `subscriptionId` — target subscription
+   - `location` — region
+   - `vaultName` / `vaultResourceGroup` — vault to use (or set `createVault=true` to create one)
+   - `backupFrequency` — `Daily`, `Weekly`, or `Both`
+   - `backupRetentionDays` — integer (days)
+   - `enableAutoRemediation` — `true` to deploy DeployIfNotExists remediation (optional)
 
-## Prerequisites
+What DeployIfNotExists does
+- For VMs tagged with the configured tag (default `backup=true`) the policy will detect missing backup protection and automatically deploy a remediation deployment that links the VM to the specified Recovery Services vault and backup policy using ARM (no Automation Account required).
 
-### Azure Subscription Requirements
-1. Active Azure subscription
-2. Owner or Contributor role on the subscription
-3. Permissions to create and manage:
-   - Resource Groups
-   - Recovery Services Vaults
-   - Backup Policies
-   - VM Backup configurations
+Notes & permissions
+- The remediation runs via Azure Policy / ARM using a managed identity and requires the ability to create policy definitions/assignments and to create the necessary protected item in the target subscription. Ensure the service principal has the necessary RBAC.
+- If you choose `createVault=true` the pipeline will create the vault in the given resource group.
 
-### Azure DevOps Requirements
-1. Azure DevOps project
-2. Service Principal with required permissions:
-   - Contributor role on target subscription
-   - Permissions to create resource groups
-   - Permissions to manage Recovery Services vaults
-3. Azure Service Connection configured in Azure DevOps project
+Files (high level)
+- `main.bicep`: deploys vault and backup policy
+- `modules/`: reusable Bicep modules (vault, policy, audit, auto-enable)
+- `scripts/`: deployment helpers and optional scripts
+- `azure-pipelines.yml`: pipeline that orchestrates deployment and optional auto-remediation
 
-### Optional Requirements for VM Backup
-1. Existing Azure VMs or plans to deploy VMs
-2. VM contributor permissions for enabling backup
-3. Network connectivity between VMs and Recovery Services Vault
+For details on the policy behavior and parameters, see the Bicep modules under `modules/`.
 
-## Solution Architecture
+## Audit pipeline (optional)
+The audit policy deployment is now separated into its own pipeline so you can run audits on-demand without changing the main infra pipeline.
 
-### Components
-1. **Recovery Services Vault**: Central backup management service
-2. **Backup Policy**: Defines schedule and retention settings
-3. **PowerShell Scripts**: For deployment and configuration
-4. **Azure Pipeline**: Orchestrates the deployment
-5. **Bicep Modules**: Infrastructure as Code templates
+- Main pipeline: `azure-pipelines.yml` — deploys vault, backup policies and (optionally) auto-remediation.
+- Audit pipeline: `azure-pipelines-audit.yml` — deploys the audit policy and assignment at the management group scope.
 
-### Deployment Flow
-1. Parameter preparation and validation
-2. Resource Group creation (if not exists)
-3. Recovery Services Vault deployment
-4. Backup Policy configuration
-5. Optional VM backup enablement
+How to run the audit pipeline
+1. Create a pipeline in Azure DevOps pointing to `azure-pipelines-audit.yml`.
+2. Provide `managementGroupId`, `vmTagName` and `vmTagValue` parameters (e.g., `backup` / `true`).
+3. Run the pipeline when you want to scan for unprotected VMs across the management group.
 
-## Deployment Guide
+Notes
+- Splitting the audit out keeps the main deployment focused on infra and remediation. It also makes it easier to schedule or run audits manually on a cadence you choose.
 
-### 1. Initial Setup
-1. Clone this repository to your Azure DevOps project
-2. Create an Azure Service Connection:
-   - Navigate to Project Settings > Service Connections
-   - Create new "Azure Resource Manager" connection
-   - Name it 'Azure-ServiceConnection'
-   - Grant access to pipelines
+## Example pipeline parameters (one-step)
+Use these example values in the pipeline for a common scenario: create a new vault in `rg-vmbackup-default` and enable auto-remediation for VMs tagged `backup=true`.
 
-### 2. Pipeline Configuration
-The pipeline is configured to run in stages with proper dependencies:
-1. **PrepareParameters**: Validates and prepares deployment parameters
-2. **CreateResourceGroup**: Creates resource group (depends on PrepareParameters)
-3. **DeployBackupInfrastructure**: Deploys vault and policy (depends on CreateResourceGroup)
+- `subscriptionId`: <your-subscription-id>
+- `location`: westeurope
+- `resourceGroupName`: rg-vmbackup-default
+- `vaultName`: rsv-backup-default
+- `vaultResourceGroup`: rg-vmbackup-default
+- `createVault`: true
+- `backupPolicyName`: DefaultPolicy
+- `backupFrequency`: Both
+- `backupRetentionDays`: 14
+- `vmTagName`: backup
+- `vmTagValue`: true
+- `enableAutoRemediation`: true
 
-### 3. Pipeline Parameters
-- `subscriptionId`: Target subscription ID
-- `location`: Target region
-  - westeurope
-  - northeurope
-  - swedencentral
-  - germanywestcentral
-- `resourceGroupName`: Name for the resource group
-- `vaultName`: Name for the Recovery Services Vault
-- `backupPolicyName`: Name for the backup policy
-- `enableBackup`: Enable/disable backup deployment
-- `backupFrequency`: Daily or Weekly backup schedule
+Vault SKU
+- `vaultSkuName`: Recovery Services Vault SKU name (default: `RS0`)
+- `vaultSkuTier`: Recovery Services Vault SKU tier (default: `Standard`)
 
-### 4. Backup Configuration Options
-- **Frequency Options**:
-  - Daily: Runs once per day at specified time
-  - Weekly: Runs on specified days (default: Sunday and Wednesday)
-- **Default Settings**:
-  - Retention period: 30 days (customizable)
-  - Time zone: UTC
-  - Public network access: Enabled (can be disabled)
-  - Cross-subscription restore: Enabled
+Note: this template does not configure backup storage replication automatically. The recommended replication for production scenarios is GRS. If you need a different replication setting, configure it after the vault is created using the Azure portal or Az PowerShell/CLI.
 
-## Post-Deployment Steps
+## Dry-run validation (build + WhatIf)
+Before running the pipeline in production, validate the Bicep templates locally and perform a subscription-scoped WhatIf to confirm no unexpected resources will be created.
 
-### Option 1: Manual VM Backup Configuration
-1. Navigate to deployed Recovery Services Vault in Azure Portal
-2. Click "Backup" in left menu
-3. Choose "Azure Virtual Machine"
-4. Select VMs to protect
-5. Choose deployed backup policy
-6. Click "Enable Backup"
+1) Open PowerShell in the repository root (Windows PowerShell or PowerShell Core).
 
-### Option 2: Automated VM Backup Configuration
-Use the provided PowerShell script:
+2) Check for Bicep availability and Azure CLI:
+
 ```powershell
-.\scripts\Enable-VMBackup.ps1 `
-    -VaultName "your-vault-name" `
-    -VaultResourceGroup "your-rg-name" `
-    -VMName "your-vm-name" `
-    -VMResourceGroup "vm-rg-name" `
-    -BackupPolicyName "your-policy-name"
+# Check local bicep CLI (optional)
+Get-Command bicep -ErrorAction SilentlyContinue
+
+# If using Azure CLI's bicep support
+az bicep version
+
+# Check Az PowerShell module (optional)
+Get-Module -ListAvailable Az
 ```
 
-## Security Features
-- Configurable public network access
-- Cross-subscription restore enabled by default
-- Standard tier storage redundancy
-- Role-based access control (RBAC) support
-
-## Troubleshooting
-
-### Common Issues
-1. **Pipeline Failures**:
-   - Verify Azure Service Connection permissions
-   - Check resource name availability
-   - Ensure subscription has required resource providers
-
-2. **Backup Policy Issues**:
-   - Verify time zone settings
-   - Check retention period limits
-   - Validate schedule run times
-
-3. **VM Backup Enablement**:
-   - Ensure VM agent is installed and running
-   - Check network connectivity to vault
-   - Verify permissions on VM and vault
-
-## Enabling VM Backup
-
-After deploying the Recovery Services Vault and backup policy, you can enable backup for your VMs using either of these approaches:
-
-### Option 1: Manual Enablement (Azure Portal)
-
-1. Navigate to the Recovery Services Vault in Azure Portal
-2. Click on "Backup" in the left menu
-3. Select "Azure Virtual Machine" as workload type
-4. Click "Backup"
-5. Select the VMs you want to protect
-6. Choose the backup policy created by this solution
-7. Click "Enable Backup"
-
-### Option 2: Automated Enablement (PowerShell)
-
-You can use the following PowerShell commands to enable backup for VMs:
+3) Build the Bicep file to JSON so you can validate the ARM template:
 
 ```powershell
-# Connect to Azure (if not already connected)
+# From repo root
+bicep build .\main.bicep --outdir .\compiled
+# OR, if you prefer the Azure CLI wrapper:
+az bicep build --file .\main.bicep --outdir .\compiled
+```
+
+4) Perform a subscription-scoped WhatIf validation (requires Az PowerShell module and you must be signed in):
+
+```powershell
+# Sign in and select subscription
 Connect-AzAccount
+Select-AzSubscription -SubscriptionId '<your-subscription-id>'
 
-# Set variables
-$vaultName = "YourVaultName"
-$resourceGroup = "YourResourceGroup"
-$vmName = "YourVMName"
-$vmResourceGroup = "YourVMResourceGroup"
-$policyName = "YourBackupPolicyName"
-
-# Get the vault and policy
-$vault = Get-AzRecoveryServicesVault -Name $vaultName -ResourceGroupName $resourceGroup
-$policy = Get-AzRecoveryServicesBackupProtectionPolicy -Name $policyName -VaultId $vault.ID
-
-# Enable backup
-Enable-AzRecoveryServicesBackupProtection `
-    -Policy $policy `
-    -Name $vmName `
-    -ResourceGroupName $vmResourceGroup `
-    -VaultId $vault.ID
+# Run subscription deployment validation (WhatIf). Replace location and template path as needed.
+New-AzSubscriptionDeployment -Name 'backup-deploy-validate' -Location 'westeurope' -TemplateFile .\compiled\main.json -WhatIf
 ```
 
-Save this script as `Enable-VMBackup.ps1` in the `scripts` folder and run as needed.
+Notes:
+- `-WhatIf` will simulate the deployment and list actions without making changes. For subscription deployments, choose an allowed location for subscription-level deployments (e.g., `westeurope`).
+- If `bicep` is not installed, install it via the Azure CLI `az bicep install` or follow https://learn.microsoft.com/azure/azure-resource-manager/bicep/install.
 
-## Audit Policy for VM Backup (management group scope, tag-based)
+## Quick test for DeployIfNotExists remediation
+1. Deploy the pipeline with `enableAutoRemediation=true` and `createVault=true` (or point to an existing vault).
+2. Tag a test VM in the target subscription with the configured tag, for example `backup=true`.
+3. In the Azure portal, check Azure Policy -> Assignments and find the assigned DeployIfNotExists policy. After the policy runs, check Compliance and Remediations for the assignment.
+4. The remediation will try to create the protectedItem in the Recovery Services vault linking the VM to the backup policy. Confirm the VM shows as protected in the Recovery Services vault -> Backup items.
 
-This solution includes an optional management-group-scoped Azure Policy that audits virtual machines which are tagged to require backup but do not have Azure Backup protection enabled. The policy is deployed in audit-only mode and does not change resources.
+Note about `Both` backup frequency
+- If you choose `backupFrequency = Both`, the deployment creates two policies named `<backupPolicyName>-daily` and `<backupPolicyName>-weekly`.
+- The auto-remediation job (DeployIfNotExists) accepts a single `backupPolicyName` parameter. When using `Both`, set the pipeline `backupPolicyName` parameter to the exact policy you want remediation to use (for example `DefaultPolicy-daily` or `DefaultPolicy-weekly`).
 
-What it does:
-- Scans virtual machines across all subscriptions under the specified management group
-- Targets only VMs that have a specific tag (by default `backup=true`)
-- Flags (audit) VMs that do not have a corresponding Recovery Services protected item
-- Helps identify workloads that need backup enabled
-
-How it's deployed:
-- The pipeline includes a job `DeployAuditPolicy` that runs after the backup infrastructure deployment. It deploys a custom policy definition and assigns it at the management group scope you provide.
-- You can also run the deployment manually with PowerShell (example):
-
-```powershell
-.\scripts\Deploy-AuditPolicy.ps1 -ManagementGroupId <your-management-group-id> `
-   -PolicyName "<policy-name>" `
-   -PolicyAssignmentName "<assignment-name>" `
-   -VmTagName "backup" `
-   -VmTagValue "true"
-```
-
-Notes and next steps:
-- The current implementation is audit-only. If you want the policy to automatically enable backup for non-protected VMs, the Microsoft pattern uses a DeployIfNotExists remediation with a managed identity and automation (see Microsoft docs). That approach is opt-in, more intrusive, and requires a managed identity with sufficient permissions—we can add this as an extension.
-- The audit policy helps produce compliance reports and can be used in alerts, workbooks or the Azure Policy compliance dashboard to track unprotected VMs.
-- Ensure the service principal or service connection used by the pipeline has permission to create policy definitions and assignments at the management group (typically Owner or Policy Contributor on the management group).
-
-## Files Structure
-
-- `main.bicep`: Main infrastructure as code template
-- `modules/`: Bicep modules for vault and policy
-  - `recoveryVault.bicep`: Recovery Services Vault module
-  - `backupPolicy.bicep`: Backup policy configuration module
-- `scripts/`: PowerShell scripts for deployment
-  - `Create-ResourceGroup.ps1`: Creates resource group if not exists
-  - `Deploy-Backup.ps1`: Deploys the Bicep template
-  - `Set-DeploymentParameters.ps1`: Sets deployment parameters
-  - `Enable-VMBackup.ps1`: Optional script for automated VM backup enablement
-- `azure-pipelines.yml`: Azure DevOps pipeline definition
+If you want, I can attempt a local `bicep build` now and report results (I will run the build in your workspace and show the output). Say "Yes — run the build now" and I'll run it and report back.

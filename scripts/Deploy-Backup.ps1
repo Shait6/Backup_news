@@ -13,6 +13,12 @@ param(
     
     [Parameter(Mandatory=$true)]
     [string]$BackupFrequency
+    
+    [Parameter(Mandatory=$false)]
+    [string]$VaultSkuName = 'RS0',
+
+    [Parameter(Mandatory=$false)]
+    [string]$VaultSkuTier = 'Standard'
 )
 
 # Deploy Bicep template with parameters
@@ -26,4 +32,7 @@ New-AzResourceGroupDeployment `
     -location $Location `
     -vaultName $VaultName `
     -backupPolicyName $BackupPolicyName `
-    -backupFrequency $BackupFrequency
+    -backupFrequency $BackupFrequency `
+    -vaultSkuName $VaultSkuName `
+    -vaultSkuTier $VaultSkuTier `
+    
