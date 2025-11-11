@@ -118,6 +118,13 @@ jobs:
             -VaultSkuName "$env:VAULT_SKU_NAME" `
             -VaultSkuTier "$env:VAULT_SKU_TIER"
 
+      - name: Upload deployment parameters (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main.parameters.json
+          path: main.parameters.json
+
       # 🏗️ Create resource group
       - name: Create Resource Group
         shell: pwsh
@@ -189,3 +196,10 @@ jobs:
           } else {
             az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.'
           }
+
+      - name: Upload resolved policy JSON (artifact)
+        if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoEnablePolicy.resolved.json
+          path: modules/autoEnablePolicy.resolved.json

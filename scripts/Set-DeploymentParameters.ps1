@@ -45,9 +45,15 @@ $parameters = @{
 # Set retention days based on backup frequency
 $backupFrequency = $env:BACKUP_FREQUENCY
 if ($backupFrequency -eq 'Daily') {
+    # keep backward-compatible key
     $parameters["backupRetentionDays"] = $DailyRetentionDays
+    # ensure explicit keys exist for templates expecting daily/weekly
+    $parameters["dailyRetentionDays"] = $DailyRetentionDays
+    $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
 } elseif ($backupFrequency -eq 'Weekly') {
     $parameters["backupRetentionDays"] = $WeeklyRetentionDays
+    $parameters["dailyRetentionDays"] = $DailyRetentionDays
+    $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
 } elseif ($backupFrequency -eq 'Both') {
     $parameters["dailyRetentionDays"] = $DailyRetentionDays
     $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
