@@ -21,34 +21,25 @@ on:
         required: false
         default: 'true'
         type: choice
-        options:
-          - 'true'
-          - 'false'
+        options: ['true', 'false']
       backupFrequency:
         description: 'Backup Frequency'
         required: false
         default: 'Daily'
         type: choice
-        options:
-          - 'Daily'
-          - 'Weekly'
-          - 'Both'
+        options: ['Daily', 'Weekly', 'Both']
       enableAutoRemediation:
         description: 'Enable Auto-Remediation'
         required: false
         default: 'false'
         type: choice
-        options:
-          - 'true'
-          - 'false'
+        options: ['true', 'false']
       createVault:
         description: 'Create Vault if not exists'
         required: false
         default: 'false'
         type: choice
-        options:
-          - 'true'
-          - 'false'
+        options: ['true', 'false']
       vaultResourceGroup:
         description: 'Vault Resource Group'
         required: false
@@ -75,7 +66,7 @@ jobs:
       MANAGEMENT_GROUP_ID: ''
       VM_TAG_NAME: 'backup'
       VM_TAG_VALUE: 'true'
-      VAULT_NAME: 'rsv-backup-default'   # fixed default vault name
+      VAULT_NAME: 'rsv-backup-default'
       VAULT_SKU_NAME: 'RS0'
       VAULT_SKU_TIER: 'Standard'
 
@@ -95,32 +86,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 🔐 Login to Azure using service principal stored in secret
+      # 🔐 Azure login using your stored service principal secret
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.serivcon }}
 
-      # 🧩 Initialize Azure PowerShell session
+      # 🧩 Initialize Azure PowerShell session using SP credentials
       - name: Initialize Azure PowerShell Session
         shell: pwsh
         run: |
           Install-Module Az.Accounts -Force -AllowClobber -Scope CurrentUser
           Install-Module Az.Resources -Force -AllowClobber -Scope CurrentUser
-                - name: Initialize Azure PowerShell Session
-        shell: pwsh
-        run: |
-          Install-Module Az.Accounts -Force -AllowClobber -Scope CurrentUser
-          Install-Module Az.Resources -Force -AllowClobber -Scope CurrentUser
-          Connect-AzAccount `
-            -ServicePrincipal `
-            -Tenant $env:AZURE_TENANT_ID `
-            -ApplicationId $env:AZURE_CLIENT_ID `
-            -Credential (New-Object System.Management.Automation.PSCredential($env:AZURE_CLIENT_ID, (ConvertTo-SecureString $env:AZURE_CLIENT_SECRET -AsPlainText -Force))) `
-            -Subscription $env:AZURE_SUBSCRIPTION_ID
+          $sec = ConvertTo-SecureString $env:AZURE_CLIENT_SECRET -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential ($env:AZURE_CLIENT_ID, $sec)
+          Connect-AzAccount -ServicePrincipal -Tenant $env:AZURE_TENANT_ID -ApplicationId $env:AZURE_CLIENT_ID -Credential $cred -Subscription $env:AZURE_SUBSCRIPTION_ID
           Save-AzContext -Path "$env:USERPROFILE\azurecontext.json" -Force
 
-      # 🧱 Prepare deployment parameters
+      # 🧱 Prepare parameters
       - name: Prepare Deployment Parameters
         shell: pwsh
         run: |
