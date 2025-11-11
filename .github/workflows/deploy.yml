@@ -6,17 +6,6 @@ on:
       subscriptionId:
         description: 'Azure Subscription ID'
         required: true
-      managementGroupId:
-        description: 'Management Group ID (optional)'
-        required: false
-      vmTagName:
-        description: 'VM Tag Name'
-        required: false
-        default: 'backup'
-      vmTagValue:
-        description: 'VM Tag Value'
-        required: false
-        default: 'true'
       location:
         description: 'Deployment Location'
         required: true
@@ -27,26 +16,6 @@ on:
           - northeurope
           - swedencentral
           - germanywestcentral
-      resourceGroupName:
-        description: 'Resource Group Name'
-        required: false
-        default: 'rg-vmbackup-default'
-      vaultName:
-        description: 'Recovery Services Vault Name'
-        required: false
-        default: 'rsv-backup-default'
-      vaultSkuName:
-        description: 'Recovery Services Vault SKU Name'
-        required: false
-        default: 'RS0'
-      vaultSkuTier:
-        description: 'Recovery Services Vault SKU Tier'
-        required: false
-        default: 'Standard'
-      backupPolicyName:
-        description: 'Backup Policy Name'
-        required: false
-        default: 'DefaultPolicy'
       enableBackup:
         description: 'Enable VM Backup'
         required: false
@@ -64,12 +33,8 @@ on:
           - 'Daily'
           - 'Weekly'
           - 'Both'
-      backupRetentionDays:
-        description: 'Backup Retention Days'
-        required: false
-        default: 14
       enableAutoRemediation:
-        description: 'Enable Auto-Remediation (DeployIfNotExists)'
+        description: 'Enable Auto-Remediation'
         required: false
         default: 'false'
         type: choice
@@ -84,34 +49,49 @@ on:
         options:
           - 'true'
           - 'false'
-      vaultResourceGroup:
-        description: 'Vault Resource Group (if creating vault)'
+      vaultName:
+        description: 'Vault Name'
         required: false
+        default: 'rsv-backup-default'
+      backupPolicyName:
+        description: 'Backup Policy Name'
+        required: false
+        default: 'DefaultPolicy'
+      resourceGroupName:
+        description: 'Resource Group Name'
+        required: false
+        default: 'rg-vmbackup-default'
+      backupRetentionDays:
+        description: 'Backup Retention Days'
+        required: false
+        default: 14
 
 jobs:
   deploy:
     runs-on: windows-latest
-    env:  # Job-level environment variables for all steps
+    env:
+      # Static or less frequently changed variables (set once)
+      MANAGEMENT_GROUP_ID: ''
+      VM_TAG_NAME: 'backup'
+      VM_TAG_VALUE: 'true'
+      VAULT_SKU_NAME: 'RS0'
+      VAULT_SKU_TIER: 'Standard'
+      VAULT_RESOURCE_GROUP: ''
+      # Map workflow inputs to environment vars
       SUBSCRIPTION_ID: ${{ github.event.inputs.subscriptionId }}
-      MANAGEMENT_GROUP_ID: ${{ github.event.inputs.managementGroupId }}
-      VM_TAG_NAME: ${{ github.event.inputs.vmTagName }}
-      VM_TAG_VALUE: ${{ github.event.inputs.vmTagValue }}
       LOCATION: ${{ github.event.inputs.location }}
-      RESOURCE_GROUP_NAME: ${{ github.event.inputs.resourceGroupName }}
-      VAULT_NAME: ${{ github.event.inputs.vaultName }}
-      VAULT_SKU_NAME: ${{ github.event.inputs.vaultSkuName }}
-      VAULT_SKU_TIER: ${{ github.event.inputs.vaultSkuTier }}
-      BACKUP_POLICY_NAME: ${{ github.event.inputs.backupPolicyName }}
       ENABLE_BACKUP: ${{ github.event.inputs.enableBackup }}
       BACKUP_FREQUENCY: ${{ github.event.inputs.backupFrequency }}
-      BACKUP_RETENTION_DAYS: ${{ github.event.inputs.backupRetentionDays }}
       ENABLE_AUTO_REMEDIATION: ${{ github.event.inputs.enableAutoRemediation }}
       CREATE_VAULT: ${{ github.event.inputs.createVault }}
-      VAULT_RESOURCE_GROUP: ${{ github.event.inputs.vaultResourceGroup }}
+      VAULT_NAME: ${{ github.event.inputs.vaultName }}
+      BACKUP_POLICY_NAME: ${{ github.event.inputs.backupPolicyName }}
+      RESOURCE_GROUP_NAME: ${{ github.event.inputs.resourceGroupName }}
+      BACKUP_RETENTION_DAYS: ${{ github.event.inputs.backupRetentionDays }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup PowerShell
         uses: actions/setup-powershell@v2
