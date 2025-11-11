@@ -109,8 +109,12 @@ jobs:
         shell: pwsh
         env:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
+          AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
-          Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
+          $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
+          $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
+          Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
           ./scripts/Set-DeploymentParameters.ps1 `
             -Location "$env:LOCATION" `
             -SubscriptionId "$env:SUBSCRIPTION_ID" `
@@ -125,8 +129,12 @@ jobs:
         shell: pwsh
         env:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
+          AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
-          Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
+          $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
+          $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
+          Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
           ./scripts/Create-ResourceGroup.ps1 `
             -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
             -Location "$env:LOCATION"
@@ -137,8 +145,12 @@ jobs:
         shell: pwsh
         env:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
+          AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
-          Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
+          $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
+          $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
+          Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
           ./scripts/Deploy-Backup.ps1 `
             -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
             -Location "$env:LOCATION" `
@@ -154,8 +166,12 @@ jobs:
         shell: pwsh
         env:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
+          AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
-          Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
+          $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
+          $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
+          Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
           ./scripts/Deploy-AutoEnablePolicySubscription.ps1 `
             -SubscriptionId "$env:SUBSCRIPTION_ID" `
             -Location "$env:LOCATION" `
