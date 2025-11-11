@@ -2,8 +2,7 @@
   "if": {
     "allOf": [
       { "field": "type", "equals": "Microsoft.Compute/virtualMachines" },
-      { "field": "tags[__TAGNAME__]", "equals": "__TAGVALUE__" },
-      { "not": { "field": "Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems[*].properties.sourceResourceId", "equals": "[field('fullName')]" } }
+      { "field": "tags[__TAGNAME__]", "equals": "__TAGVALUE__" }
     ]
   },
   "then": {
@@ -11,6 +10,10 @@
     "details": {
       "type": "Microsoft.Resources/deployments",
       "roleDefinitionIds": ["__ROLEDEFID__"],
+      "existenceCondition": {
+        "field": "properties.sourceResourceId",
+        "equals": "[field('fullName')]"
+      },
       "deployment": {
         "properties": {
           "mode": "Incremental",
