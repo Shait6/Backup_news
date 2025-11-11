@@ -11,7 +11,7 @@
       "type": "Microsoft.Resources/deployments",
       "roleDefinitionIds": ["__ROLEDEFID__"],
       "existenceCondition": {
-        "field": "properties.sourceResourceId",
+        "field": "Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems/properties.sourceResourceId",
         "equals": "[field('fullName')]"
       },
       "deployment": {
