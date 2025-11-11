@@ -12,7 +12,7 @@
       "roleDefinitionIds": ["__ROLEDEFID__"],
       "existenceCondition": {
         "field": "name",
-        "equals": "[concat(parameters('vaultName'), '/Azure/protectionContainers/protectedItems-', replace(replace(field('fullName'), '/', '-'), ':', '-'))]"
+        "equals": "[concat('__VAULT_NAME__', '/Azure/protectionContainers/protectedItems-', replace(replace(field('fullName'), '/', '-'), ':', '-'))]"
       },
       "deployment": {
         "properties": {

@@ -142,24 +142,50 @@ jobs:
               vaultSkuName="$env:VAULT_SKU_NAME" `
               vaultSkuTier="$env:VAULT_SKU_TIER"
 
-      # 🛡️ Deploy auto-enable policy
-      - name: Deploy Auto-Enable Policy
+      # 🛡️ Deploy auto-enable policy (Option B: preprocess JSON and create policy directly)
+      - name: Deploy Auto-Enable Policy (preprocess JSON)
         if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
         shell: pwsh
         run: |
           # Azure CLI login is already handled by azure/login action
-          # Ensure correct subscription context
           az account set --subscription "$env:SUBSCRIPTION_ID"
 
-          az deployment sub create `
-            --name backupAutoEnablePolicy `
-            --location "$env:LOCATION" `
-            --template-file "modules/backupAutoEnablePolicy.bicep" `
-            --parameters `
-              policyName='deployifnotexists-enable-vm-backup' `
-              policyAssignmentName='enable-vm-backup-assignment' `
-              vmTagName="$env:VM_TAG_NAME" `
-              vmTagValue="$env:VM_TAG_VALUE" `
-              backupPolicyName="$env:BACKUP_POLICY_NAME" `
-              vaultName="$env:VAULT_NAME" `
-              vaultResourceGroup="$env:VAULT_RESOURCE_GROUP"`
+          # Build the full roleDefinitionId for Contributor-like role used by remediation
+          $roleGuid = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
+          $roleId = "/subscriptions/$env:SUBSCRIPTION_ID/providers/Microsoft.Authorization/roleDefinitions/$roleGuid"
+
+          # Read and replace placeholders in the policy JSON
+          $raw = Get-Content -Path 'modules/autoEnablePolicy.rule.json' -Raw
+          $resolved = $raw `
+            -replace '__ROLEDEFID__', [Regex]::Escape($roleId) `
+            -replace '__VAULT_NAME__', $env:VAULT_NAME `
+            -replace '__VAULT_RG__', $env:VAULT_RESOURCE_GROUP `
+            -replace '__BACKUP_POLICY__', $env:BACKUP_POLICY_NAME `
+            -replace '__TAGNAME__', $env:VM_TAG_NAME `
+            -replace '__TAGVALUE__', $env:VM_TAG_VALUE
+
+          $outPath = 'modules/autoEnablePolicy.resolved.json'
+          $resolved | Out-File -FilePath $outPath -Encoding utf8
+
+          # Policy and assignment names
+          $policyName = 'deployifnotexists-enable-vm-backup'
+          $assignmentName = 'enable-vm-backup-assignment'
+
+          # Create or update the policy definition
+          $exists = az policy definition show --name $policyName --query name -o tsv 2>$null
+          if ($exists) {
+            az policy definition update --name $policyName --rules $outPath --display-name 'DeployIfNotExists: enable VM backup for tagged VMs'
+          } else {
+            az policy definition create --name $policyName --display-name 'DeployIfNotExists: enable VM backup for tagged VMs' --rules $outPath --mode Indexed
+          }
+
+          # Get the policy id
+          $policyId = az policy definition show --name $policyName --query id -o tsv
+
+          # Create or update the assignment at subscription scope
+          $assignExists = az policy assignment show --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --query name -o tsv 2>$null
+          if ($assignExists) {
+            az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy $policyId --display-name 'Enable VM backup for tagged VMs'
+          } else {
+            az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy $policyId --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.'
+          }
