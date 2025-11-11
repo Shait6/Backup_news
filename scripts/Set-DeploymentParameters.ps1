@@ -13,7 +13,10 @@ param(
     [string]$BackupPolicyName = "DefaultPolicy",
 
     [Parameter(Mandatory=$false)]
-    [int]$BackupRetentionDays = 30,
+    [int]$DailyRetentionDays = 14,
+
+    [Parameter(Mandatory=$false)]
+    [int]$WeeklyRetentionDays = 30,
 
     [Parameter(Mandatory=$false)]
     [array]$WeeklyBackupDaysOfWeek = @("Sunday", "Wednesday"),
@@ -33,12 +36,21 @@ $parameters = @{
     location = $Location
     vaultName = $VaultName
     backupPolicyName = $BackupPolicyName
-    backupRetentionDays = $BackupRetentionDays
     weeklyBackupDaysOfWeek = $WeeklyBackupDaysOfWeek
     backupScheduleRunTimes = $BackupScheduleRunTimes
     vaultSkuName = $VaultSkuName
     vaultSkuTier = $VaultSkuTier
-    
+}
+
+# Set retention days based on backup frequency
+$backupFrequency = $env:BACKUP_FREQUENCY
+if ($backupFrequency -eq 'Daily') {
+    $parameters["backupRetentionDays"] = $DailyRetentionDays
+} elseif ($backupFrequency -eq 'Weekly') {
+    $parameters["backupRetentionDays"] = $WeeklyRetentionDays
+} elseif ($backupFrequency -eq 'Both') {
+    $parameters["dailyRetentionDays"] = $DailyRetentionDays
+    $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
 }
 
 # Convert to JSON

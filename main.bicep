@@ -5,7 +5,10 @@ param backupPolicyName string
 param backupScheduleRunTimes array = [
   '2023-12-31T01:00:00Z'
 ]
-param backupRetentionDays int = 30
+@description('Retention in days for daily backups')
+param dailyRetentionDays int = 14
+@description('Retention in days for weekly backups')
+param weeklyRetentionDays int = 30
 param weeklyBackupDaysOfWeek array = [
   'Sunday'
   'Wednesday'
@@ -51,7 +54,8 @@ module policyModule './modules/backupPolicy.bicep' = {
     backupFrequency: backupFrequency
     backupScheduleRunTimes: backupScheduleRunTimes
     weeklyBackupDaysOfWeek: weeklyBackupDaysOfWeek
-    backupRetentionDays: backupRetentionDays
+    dailyRetentionDays: dailyRetentionDays
+    weeklyRetentionDays: weeklyRetentionDays
   }
   dependsOn: [vaultModule]
 }

@@ -52,10 +52,14 @@ on:
         description: 'Resource Group Name'
         required: false
         default: 'rg-vmbackup-default'
-      backupRetentionDays:
-        description: 'Backup Retention Days'
+      dailyRetentionDays:
+        description: 'Daily Backup Retention Days'
         required: false
         default: '14'
+      weeklyRetentionDays:
+        description: 'Weekly Backup Retention Days'
+        required: false
+        default: '30'
 
 jobs:
   deploy:
@@ -80,7 +84,8 @@ jobs:
       VAULT_RESOURCE_GROUP: ${{ github.event.inputs.vaultResourceGroup }}
       BACKUP_POLICY_NAME: ${{ github.event.inputs.backupPolicyName }}
       RESOURCE_GROUP_NAME: ${{ github.event.inputs.resourceGroupName }}
-      BACKUP_RETENTION_DAYS: ${{ github.event.inputs.backupRetentionDays }}
+      DAILY_RETENTION_DAYS: ${{ github.event.inputs.dailyRetentionDays }}
+      WEEKLY_RETENTION_DAYS: ${{ github.event.inputs.weeklyRetentionDays }}
 
     steps:
       - name: Checkout repository
@@ -117,7 +122,8 @@ jobs:
             -SubscriptionId "$env:SUBSCRIPTION_ID" `
             -VaultName "$env:VAULT_NAME" `
             -BackupPolicyName "$env:BACKUP_POLICY_NAME" `
-            -BackupRetentionDays $env:BACKUP_RETENTION_DAYS `
+            -DailyRetentionDays $env:DAILY_RETENTION_DAYS `
+            -WeeklyRetentionDays $env:WEEKLY_RETENTION_DAYS `
             -VaultSkuName "$env:VAULT_SKU_NAME" `
             -VaultSkuTier "$env:VAULT_SKU_TIER"
 
@@ -155,7 +161,6 @@ jobs:
             --location "$env:LOCATION" `
             --template-file "modules/backupAutoEnablePolicy.bicep" `
             --parameters `
-              subscriptionId="$env:SUBSCRIPTION_ID" `
               vmTagName="$env:VM_TAG_NAME" `
               vmTagValue="$env:VM_TAG_VALUE" `
               backupPolicyName="$env:BACKUP_POLICY_NAME" `

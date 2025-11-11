@@ -13,8 +13,10 @@ param backupFrequency string = 'Daily'
 param backupScheduleRunTimes array
 @description('Weekly run days (used when backupFrequency == "Weekly")')
 param weeklyBackupDaysOfWeek array = []
-@description('Retention in days')
-param backupRetentionDays int = 30
+@description('Retention in days for daily backups')
+param dailyRetentionDays int = 14
+@description('Retention in days for weekly backups')
+param weeklyRetentionDays int = 30
 
 // Reference existing vault as parent
 resource existingVault 'Microsoft.RecoveryServices/vaults@2025-02-01' existing = {
@@ -38,7 +40,7 @@ resource backupPolicyDaily 'Microsoft.RecoveryServices/vaults/backupPolicies@202
       dailySchedule: {
         retentionTimes: backupScheduleRunTimes
         retentionDuration: {
-          count: backupRetentionDays
+          count: dailyRetentionDays
           durationType: 'Days'
         }
       }
@@ -64,7 +66,7 @@ resource backupPolicyWeekly 'Microsoft.RecoveryServices/vaults/backupPolicies@20
       dailySchedule: {
         retentionTimes: backupScheduleRunTimes
         retentionDuration: {
-          count: backupRetentionDays
+          count: weeklyRetentionDays
           durationType: 'Days'
         }
       }
