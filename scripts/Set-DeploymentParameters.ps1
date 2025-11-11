@@ -22,7 +22,7 @@ param(
     [array]$WeeklyBackupDaysOfWeek = @("Sunday", "Wednesday"),
 
     [Parameter(Mandatory=$false)]
-    [array]$BackupScheduleRunTimes = @("2023-12-31T01:00:00Z"),
+    [array]$BackupScheduleRunTimes = @("01:00"),
     
     [Parameter(Mandatory=$false)]
     [string]$VaultSkuName = 'RS0',
@@ -37,7 +37,8 @@ $parameters = @{
     vaultName = $VaultName
     backupPolicyName = $BackupPolicyName
     weeklyBackupDaysOfWeek = $WeeklyBackupDaysOfWeek
-    backupScheduleRunTimes = $BackupScheduleRunTimes
+        # Use time-of-day strings (HH:mm) rather than full ISO datetimes to match Recovery Services API expectations
+        backupScheduleRunTimes = $BackupScheduleRunTimes
     vaultSkuName = $VaultSkuName
     vaultSkuTier = $VaultSkuTier
 }

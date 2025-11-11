@@ -3,7 +3,9 @@ param location string
 param vaultName string
 param backupPolicyName string
 param backupScheduleRunTimes array = [
-  '2023-12-31T01:00:00Z'
+  // Use time-of-day strings (HH:mm) for policy schedule times. Avoid full ISO datetimes which the
+  // Recovery Services policy API may reject. Example: '01:00'
+  '01:00'
 ]
 @description('Retention in days for daily backups')
 param dailyRetentionDays int = 14

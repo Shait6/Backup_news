@@ -125,6 +125,27 @@ jobs:
           name: main.parameters.json
           path: main.parameters.json
 
+      # 🧰 Bicep build pre-check: compile templates to catch schema/format errors early
+      - name: Bicep build (pre-check)
+        shell: pwsh
+        run: |
+          # Ensure az bicep is available; install if missing
+          try {
+            az bicep version | Out-Null
+          } catch {
+            az bicep install
+          }
+
+          # Build the main Bicep file (this will expand modules and validate syntax)
+          az bicep build --file main.bicep --outdir bicep-build
+
+      - name: Upload compiled template (artifact)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-template
+          path: bicep-build/main.json
+
       # 🏗️ Create resource group
       - name: Create Resource Group
         shell: pwsh
