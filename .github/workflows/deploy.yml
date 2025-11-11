@@ -111,6 +111,8 @@ jobs:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
+          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser
+          Import-Module Az.Accounts -Force
           $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
           Write-Host "clientId: $($creds.clientId)"
           Write-Host "tenantId: $($creds.tenantId)"
@@ -135,6 +137,8 @@ jobs:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
+          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser
+          Import-Module Az.Accounts -Force
           $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
           Write-Host "clientId: $($creds.clientId)"
           Write-Host "tenantId: $($creds.tenantId)"
@@ -155,6 +159,8 @@ jobs:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
+          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser
+          Import-Module Az.Accounts -Force
           $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
           Write-Host "clientId: $($creds.clientId)"
           Write-Host "tenantId: $($creds.tenantId)"
@@ -180,6 +186,8 @@ jobs:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
+          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser
+          Import-Module Az.Accounts -Force
           $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
           Write-Host "clientId: $($creds.clientId)"
           Write-Host "tenantId: $($creds.tenantId)"
