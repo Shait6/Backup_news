@@ -69,15 +69,16 @@ on:
 jobs:
   deploy:
     runs-on: windows-latest
+
     env:
-      # Static or less frequently changed variables (set once)
+      # Static / less frequently changed variables
       MANAGEMENT_GROUP_ID: ''
       VM_TAG_NAME: 'backup'
       VM_TAG_VALUE: 'true'
       VAULT_SKU_NAME: 'RS0'
       VAULT_SKU_TIER: 'Standard'
       VAULT_RESOURCE_GROUP: ''
-      # Map workflow inputs to environment vars
+      # Map workflow inputs
       SUBSCRIPTION_ID: ${{ github.event.inputs.subscriptionId }}
       LOCATION: ${{ github.event.inputs.location }}
       ENABLE_BACKUP: ${{ github.event.inputs.enableBackup }}
@@ -93,10 +94,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup PowerShell
-        uses: actions/setup-powershell@v2
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.serivcon }}
 
       - name: Prepare Deployment Parameters
+        shell: pwsh
         run: |
           ./scripts/Set-DeploymentParameters.ps1 `
             -Location "$env:LOCATION" `
@@ -108,6 +112,7 @@ jobs:
             -VaultSkuTier "$env:VAULT_SKU_TIER"
 
       - name: Create Resource Group
+        shell: pwsh
         run: |
           ./scripts/Create-ResourceGroup.ps1 `
             -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
@@ -115,6 +120,7 @@ jobs:
 
       - name: Deploy Backup Infrastructure
         if: ${{ env.ENABLE_BACKUP == 'true' }}
+        shell: pwsh
         run: |
           ./scripts/Deploy-Backup.ps1 `
             -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
@@ -127,6 +133,7 @@ jobs:
 
       - name: Deploy Auto-Enable Policy
         if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
+        shell: pwsh
         run: |
           ./scripts/Deploy-AutoEnablePolicySubscription.ps1 `
             -SubscriptionId "$env:SUBSCRIPTION_ID" `
