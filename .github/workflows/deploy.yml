@@ -185,7 +185,7 @@ jobs:
           # Create or update the assignment at subscription scope
           $assignExists = az policy assignment show --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --query name -o tsv 2>$null
           if ($assignExists) {
-            az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy $policyId --display-name 'Enable VM backup for tagged VMs'
+            az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs'
           } else {
-            az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy $policyId --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.'
+            az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.'
           }
