@@ -148,6 +148,19 @@ jobs:
               backupFrequency="$env:BACKUP_FREQUENCY" `
               vaultSkuName="$env:VAULT_SKU_NAME" `
               vaultSkuTier="$env:VAULT_SKU_TIER"
+      - name: Collect failed deployment operations (on failure)
+        if: ${{ failure() }}
+        shell: pwsh
+        run: |
+          az account set --subscription "$env:SUBSCRIPTION_ID"
+          az deployment operation group list --resource-group "$env:RESOURCE_GROUP_NAME" --name main -o json > deployment.operations.json
+
+      - name: Upload deployment operations (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment.operations.json
+          path: deployment.operations.json
 
       # 🛡️ Deploy auto-enable policy (Option B: preprocess JSON and create policy directly)
       - name: Deploy Auto-Enable Policy (preprocess JSON)
