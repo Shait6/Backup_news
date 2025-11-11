@@ -134,15 +134,15 @@ jobs:
         shell: pwsh
         run: |
           # Azure CLI login is already handled by azure/login action
-          az deployment group create \
-            --resource-group "$env:RESOURCE_GROUP_NAME" \
-            --template-file "main.bicep" \
-            --parameters \
-              location="$env:LOCATION" \
-              vaultName="$env:VAULT_NAME" \
-              backupPolicyName="$env:BACKUP_POLICY_NAME" \
-              backupFrequency="$env:BACKUP_FREQUENCY" \
-              vaultSkuName="$env:VAULT_SKU_NAME" \
+          az deployment group create `
+            --resource-group "$env:RESOURCE_GROUP_NAME" `
+            --template-file "main.bicep" `
+            --parameters `
+              location="$env:LOCATION" `
+              vaultName="$env:VAULT_NAME" `
+              backupPolicyName="$env:BACKUP_POLICY_NAME" `
+              backupFrequency="$env:BACKUP_FREQUENCY" `
+              vaultSkuName="$env:VAULT_SKU_NAME" `
               vaultSkuTier="$env:VAULT_SKU_TIER"
 
       # 🛡️ Deploy auto-enable policy
@@ -151,14 +151,14 @@ jobs:
         shell: pwsh
         run: |
           # Azure CLI login is already handled by azure/login action
-          az deployment sub create \
-            --location "$env:LOCATION" \
-            --template-file "modules/backupAutoEnablePolicy.bicep" \
-            --parameters \
-              subscriptionId="$env:SUBSCRIPTION_ID" \
-              vmTagName="$env:VM_TAG_NAME" \
-              vmTagValue="$env:VM_TAG_VALUE" \
-              backupPolicyName="$env:BACKUP_POLICY_NAME" \
-              vaultName="$env:VAULT_NAME" \
-              vaultResourceGroup="$env:VAULT_RESOURCE_GROUP" \
+          az deployment sub create `
+            --location "$env:LOCATION" `
+            --template-file "modules/backupAutoEnablePolicy.bicep" `
+            --parameters `
+              subscriptionId="$env:SUBSCRIPTION_ID" `
+              vmTagName="$env:VM_TAG_NAME" `
+              vmTagValue="$env:VM_TAG_VALUE" `
+              backupPolicyName="$env:BACKUP_POLICY_NAME" `
+              vaultName="$env:VAULT_NAME" `
+              vaultResourceGroup="$env:VAULT_RESOURCE_GROUP" `
               createVault="$env:CREATE_VAULT"
