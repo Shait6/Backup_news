@@ -19,6 +19,7 @@ resource recoveryServicesVault 'Microsoft.RecoveryServices/vaults@2025-02-01' = 
   sku: {
     name: skuName
     tier: skuTier
+    
   }
   properties: {
     publicNetworkAccess: publicNetworkAccess

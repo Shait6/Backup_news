@@ -1,0 +1,102 @@
+name: Deploy VM Backup Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      configFile:
+        description: 'Path to configuration file (YAML)'
+        required: true
+        default: 'config/deploy-config.yml'
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+
+    steps:
+      # Step 1: Checkout the repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Log in to Azure
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.serivcon }}
+
+      # Step 3: Install YAML module
+      - name: Install PowerShell YAML module
+        shell: pwsh
+        run: |
+          Install-Module -Name powershell-yaml -Force -Scope CurrentUser
+
+      # Step 4: Load configuration file and export environment variables
+      - name: Load configuration file
+        shell: pwsh
+        run: |
+          Import-Module powershell-yaml
+
+          # Resolve full path to config file
+          $configPath = Join-Path $env:GITHUB_WORKSPACE "${{ github.event.inputs.configFile }}"
+          Write-Host "Loading config from $configPath"
+
+          if (-Not (Test-Path $configPath)) {
+              throw "Configuration file not found at $configPath"
+          }
+
+          $config = Get-Content $configPath | ConvertFrom-Yaml
+
+          foreach ($key in $config.PSObject.Properties.Name) {
+              $value = $config.$key
+              Write-Host "Setting env $key=$value"
+              echo "$key=$value" >> $env:GITHUB_ENV
+          }
+
+      # Step 5: Prepare parameters
+      - name: Prepare Parameters
+        shell: pwsh
+        run: |
+          ./scripts/Set-DeploymentParameters.ps1 `
+            -Location "$env:location" `
+            -SubscriptionId "$env:subscriptionId" `
+            -VaultName "$env:vaultName" `
+            -BackupPolicyName "$env:backupPolicyName" `
+            -BackupRetentionDays $env:backupRetentionDays `
+            -VaultSkuName "$env:vaultSkuName" `
+            -VaultSkuTier "$env:vaultSkuTier"
+
+      # Step 6: Create Resource Group
+      - name: Create Resource Group
+        shell: pwsh
+        run: |
+          ./scripts/Create-ResourceGroup.ps1 `
+            -ResourceGroupName "$env:resourceGroupName" `
+            -Location "$env:location"
+
+      # Step 7: Deploy Backup Infrastructure
+      - name: Deploy Backup Infrastructure
+        if: env.enableBackup == 'true'
+        shell: pwsh
+        run: |
+          ./scripts/Deploy-Backup.ps1 `
+            -ResourceGroupName "$env:resourceGroupName" `
+            -Location "$env:location" `
+            -VaultName "$env:vaultName" `
+            -BackupPolicyName "$env:backupPolicyName" `
+            -BackupFrequency "$env:backupFrequency" `
+            -VaultSkuName "$env:vaultSkuName" `
+            -VaultSkuTier "$env:vaultSkuTier"
+
+      # Step 8: Deploy Auto-Enable Policy
+      - name: Deploy Auto-Enable Policy
+        if: env.enableAutoRemediation == 'true'
+        shell: pwsh
+        run: |
+          ./scripts/Deploy-AutoEnablePolicySubscription.ps1 `
+            -SubscriptionId "$env:subscriptionId" `
+            -Location "$env:location" `
+            -VmTagName "$env:vmTagName" `
+            -VmTagValue "$env:vmTagValue" `
+            -BackupPolicyName "$env:backupPolicyName" `
+            -VaultName "$env:vaultName" `
+            -VaultResourceGroup "$env:vaultResourceGroup" `
+            -CreateVault "$env:createVault"
