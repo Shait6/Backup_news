@@ -71,7 +71,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      # Static / less frequently changed variables
+      # Static values (can be adjusted as needed)
       MANAGEMENT_GROUP_ID: ''
       VM_TAG_NAME: 'backup'
       VM_TAG_VALUE: 'true'
@@ -94,14 +94,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 🔐 Azure Login using your existing secret
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.serivcon }}
 
+      # 🧩 Initialize Azure PowerShell context (done once)
+      - name: Initialize Azure session for PowerShell
+        shell: pwsh
+        run: |
+          Install-Module Az.Accounts -Force -AllowClobber -Scope CurrentUser
+          Install-Module Az.Resources -Force -AllowClobber -Scope CurrentUser
+          Connect-AzAccount -Identity
+          Save-AzContext -Path "$env:USERPROFILE\azurecontext.json" -Force
+
       - name: Prepare Deployment Parameters
         shell: pwsh
         run: |
+          Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
           ./scripts/Set-DeploymentParameters.ps1 `
             -Location "$env:LOCATION" `
             -SubscriptionId "$env:SUBSCRIPTION_ID" `
@@ -114,6 +125,7 @@ jobs:
       - name: Create Resource Group
         shell: pwsh
         run: |
+          Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
           ./scripts/Create-ResourceGroup.ps1 `
             -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
             -Location "$env:LOCATION"
@@ -122,6 +134,7 @@ jobs:
         if: ${{ env.ENABLE_BACKUP == 'true' }}
         shell: pwsh
         run: |
+          Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
           ./scripts/Deploy-Backup.ps1 `
             -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
             -Location "$env:LOCATION" `
@@ -135,6 +148,7 @@ jobs:
         if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
         shell: pwsh
         run: |
+          Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
           ./scripts/Deploy-AutoEnablePolicySubscription.ps1 `
             -SubscriptionId "$env:SUBSCRIPTION_ID" `
             -Location "$env:LOCATION" `
@@ -143,4 +157,4 @@ jobs:
             -BackupPolicyName "$env:BACKUP_POLICY_NAME" `
             -VaultName "$env:VAULT_NAME" `
             -VaultResourceGroup "$env:VAULT_RESOURCE_GROUP" `
-            -CreateVault "$env:CREATE_VAULT"
+            -Creat
