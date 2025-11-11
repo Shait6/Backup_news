@@ -156,5 +156,4 @@ jobs:
               vmTagValue="$env:VM_TAG_VALUE" `
               backupPolicyName="$env:BACKUP_POLICY_NAME" `
               vaultName="$env:VAULT_NAME" `
-              vaultResourceGroup="$env:VAULT_RESOURCE_GROUP" `
-              createVault="$env:CREATE_VAULT"
+              vaultResourceGroup="$env:VAULT_RESOURCE_GROUP"`
