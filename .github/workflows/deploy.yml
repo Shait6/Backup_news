@@ -111,17 +111,8 @@ jobs:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
-          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser
-          Import-Module Az.Accounts -Force
-          $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
-          Write-Host "clientId: $($creds.clientId)"
-          Write-Host "tenantId: $($creds.tenantId)"
-          Write-Host "subscriptionId: $($creds.subscriptionId)"
-          Write-Host "clientSecret length: $($creds.clientSecret.Length)"
-          $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
-          $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
-          Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
-          ./scripts/Set-DeploymentParameters.ps1 `
+          # Azure CLI login is already handled by azure/login action
+          pwsh ./scripts/Set-DeploymentParameters.ps1 `
             -Location "$env:LOCATION" `
             -SubscriptionId "$env:SUBSCRIPTION_ID" `
             -VaultName "$env:VAULT_NAME" `
