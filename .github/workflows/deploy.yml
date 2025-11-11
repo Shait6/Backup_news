@@ -148,10 +148,16 @@ jobs:
         shell: pwsh
         run: |
           # Azure CLI login is already handled by azure/login action
+          # Ensure correct subscription context
+          az account set --subscription "$env:SUBSCRIPTION_ID"
+
           az deployment sub create `
+            --name backupAutoEnablePolicy `
             --location "$env:LOCATION" `
             --template-file "modules/backupAutoEnablePolicy.bicep" `
             --parameters `
+              policyName='deployifnotexists-enable-vm-backup' `
+              policyAssignmentName='enable-vm-backup-assignment' `
               vmTagName="$env:VM_TAG_NAME" `
               vmTagValue="$env:VM_TAG_VALUE" `
               backupPolicyName="$env:BACKUP_POLICY_NAME" `
