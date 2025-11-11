@@ -63,7 +63,7 @@ resource backupPolicyWeekly 'Microsoft.RecoveryServices/vaults/backupPolicies@20
     }
     retentionPolicy: {
       retentionPolicyType: 'LongTermRetentionPolicy'
-      dailySchedule: {
+      weeklySchedule: {
         retentionTimes: backupScheduleRunTimes
         retentionDuration: {
           count: weeklyRetentionDays
