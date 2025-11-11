@@ -1,102 +1,159 @@
-name: Deploy VM Backup Infrastructure
+name: Deploy Backup Infrastructure
 
 on:
   workflow_dispatch:
     inputs:
-      configFile:
-        description: 'Path to configuration file (YAML)'
+      subscriptionId:
+        description: 'Azure Subscription ID'
         required: true
-        default: 'config/deploy-config.yml'
+      managementGroupId:
+        description: 'Management Group ID (optional)'
+        required: false
+      vmTagName:
+        description: 'VM Tag Name'
+        required: false
+        default: 'backup'
+      vmTagValue:
+        description: 'VM Tag Value'
+        required: false
+        default: 'true'
+      location:
+        description: 'Deployment Location'
+        required: true
+        default: 'westeurope'
+        type: choice
+        options:
+          - westeurope
+          - northeurope
+          - swedencentral
+          - germanywestcentral
+      resourceGroupName:
+        description: 'Resource Group Name'
+        required: false
+        default: 'rg-vmbackup-default'
+      vaultName:
+        description: 'Recovery Services Vault Name'
+        required: false
+        default: 'rsv-backup-default'
+      vaultSkuName:
+        description: 'Recovery Services Vault SKU Name'
+        required: false
+        default: 'RS0'
+      vaultSkuTier:
+        description: 'Recovery Services Vault SKU Tier'
+        required: false
+        default: 'Standard'
+      backupPolicyName:
+        description: 'Backup Policy Name'
+        required: false
+        default: 'DefaultPolicy'
+      enableBackup:
+        description: 'Enable VM Backup'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      backupFrequency:
+        description: 'Backup Frequency'
+        required: false
+        default: 'Daily'
+        type: choice
+        options:
+          - 'Daily'
+          - 'Weekly'
+          - 'Both'
+      backupRetentionDays:
+        description: 'Backup Retention Days'
+        required: false
+        default: 14
+      enableAutoRemediation:
+        description: 'Enable Auto-Remediation (DeployIfNotExists)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      createVault:
+        description: 'Create Vault if not exists'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      vaultResourceGroup:
+        description: 'Vault Resource Group (if creating vault)'
+        required: false
 
 jobs:
   deploy:
     runs-on: windows-latest
+    env:  # Job-level environment variables for all steps
+      SUBSCRIPTION_ID: ${{ github.event.inputs.subscriptionId }}
+      MANAGEMENT_GROUP_ID: ${{ github.event.inputs.managementGroupId }}
+      VM_TAG_NAME: ${{ github.event.inputs.vmTagName }}
+      VM_TAG_VALUE: ${{ github.event.inputs.vmTagValue }}
+      LOCATION: ${{ github.event.inputs.location }}
+      RESOURCE_GROUP_NAME: ${{ github.event.inputs.resourceGroupName }}
+      VAULT_NAME: ${{ github.event.inputs.vaultName }}
+      VAULT_SKU_NAME: ${{ github.event.inputs.vaultSkuName }}
+      VAULT_SKU_TIER: ${{ github.event.inputs.vaultSkuTier }}
+      BACKUP_POLICY_NAME: ${{ github.event.inputs.backupPolicyName }}
+      ENABLE_BACKUP: ${{ github.event.inputs.enableBackup }}
+      BACKUP_FREQUENCY: ${{ github.event.inputs.backupFrequency }}
+      BACKUP_RETENTION_DAYS: ${{ github.event.inputs.backupRetentionDays }}
+      ENABLE_AUTO_REMEDIATION: ${{ github.event.inputs.enableAutoRemediation }}
+      CREATE_VAULT: ${{ github.event.inputs.createVault }}
+      VAULT_RESOURCE_GROUP: ${{ github.event.inputs.vaultResourceGroup }}
 
     steps:
-      # Step 1: Checkout the repo
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      # Step 2: Log in to Azure
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.serivcon }}
+      - name: Setup PowerShell
+        uses: actions/setup-powershell@v2
 
-      # Step 3: Install YAML module
-      - name: Install PowerShell YAML module
-        shell: pwsh
-        run: |
-          Install-Module -Name powershell-yaml -Force -Scope CurrentUser
-
-      # Step 4: Load configuration file and export environment variables
-      - name: Load configuration file
-        shell: pwsh
-        run: |
-          Import-Module powershell-yaml
-
-          # Resolve full path to config file
-          $configPath = Join-Path $env:GITHUB_WORKSPACE "${{ github.event.inputs.configFile }}"
-          Write-Host "Loading config from $configPath"
-
-          if (-Not (Test-Path $configPath)) {
-              throw "Configuration file not found at $configPath"
-          }
-
-          $config = Get-Content $configPath | ConvertFrom-Yaml
-
-          foreach ($key in $config.PSObject.Properties.Name) {
-              $value = $config.$key
-              Write-Host "Setting env $key=$value"
-              echo "$key=$value" >> $env:GITHUB_ENV
-          }
-
-      # Step 5: Prepare parameters
-      - name: Prepare Parameters
-        shell: pwsh
+      - name: Prepare Deployment Parameters
         run: |
           ./scripts/Set-DeploymentParameters.ps1 `
-            -Location "$env:location" `
-            -SubscriptionId "$env:subscriptionId" `
-            -VaultName "$env:vaultName" `
-            -BackupPolicyName "$env:backupPolicyName" `
-            -BackupRetentionDays $env:backupRetentionDays `
-            -VaultSkuName "$env:vaultSkuName" `
-            -VaultSkuTier "$env:vaultSkuTier"
+            -Location "$env:LOCATION" `
+            -SubscriptionId "$env:SUBSCRIPTION_ID" `
+            -VaultName "$env:VAULT_NAME" `
+            -BackupPolicyName "$env:BACKUP_POLICY_NAME" `
+            -BackupRetentionDays $env:BACKUP_RETENTION_DAYS `
+            -VaultSkuName "$env:VAULT_SKU_NAME" `
+            -VaultSkuTier "$env:VAULT_SKU_TIER"
 
-      # Step 6: Create Resource Group
       - name: Create Resource Group
-        shell: pwsh
         run: |
           ./scripts/Create-ResourceGroup.ps1 `
-            -ResourceGroupName "$env:resourceGroupName" `
-            -Location "$env:location"
+            -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
+            -Location "$env:LOCATION"
 
-      # Step 7: Deploy Backup Infrastructure
       - name: Deploy Backup Infrastructure
-        if: env.enableBackup == 'true'
-        shell: pwsh
+        if: ${{ env.ENABLE_BACKUP == 'true' }}
         run: |
           ./scripts/Deploy-Backup.ps1 `
-            -ResourceGroupName "$env:resourceGroupName" `
-            -Location "$env:location" `
-            -VaultName "$env:vaultName" `
-            -BackupPolicyName "$env:backupPolicyName" `
-            -BackupFrequency "$env:backupFrequency" `
-            -VaultSkuName "$env:vaultSkuName" `
-            -VaultSkuTier "$env:vaultSkuTier"
+            -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
+            -Location "$env:LOCATION" `
+            -VaultName "$env:VAULT_NAME" `
+            -BackupPolicyName "$env:BACKUP_POLICY_NAME" `
+            -BackupFrequency "$env:BACKUP_FREQUENCY" `
+            -VaultSkuName "$env:VAULT_SKU_NAME" `
+            -VaultSkuTier "$env:VAULT_SKU_TIER"
 
-      # Step 8: Deploy Auto-Enable Policy
       - name: Deploy Auto-Enable Policy
-        if: env.enableAutoRemediation == 'true'
-        shell: pwsh
+        if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
         run: |
           ./scripts/Deploy-AutoEnablePolicySubscription.ps1 `
-            -SubscriptionId "$env:subscriptionId" `
-            -Location "$env:location" `
-            -VmTagName "$env:vmTagName" `
-            -VmTagValue "$env:vmTagValue" `
-            -BackupPolicyName "$env:backupPolicyName" `
-            -VaultName "$env:vaultName" `
-            -VaultResourceGroup "$env:vaultResourceGroup" `
-            -CreateVault "$env:createVault"
+            -SubscriptionId "$env:SUBSCRIPTION_ID" `
+            -Location "$env:LOCATION" `
+            -VmTagName "$env:VM_TAG_NAME" `
+            -VmTagValue "$env:VM_TAG_VALUE" `
+            -BackupPolicyName "$env:BACKUP_POLICY_NAME" `
+            -VaultName "$env:VAULT_NAME" `
+            -VaultResourceGroup "$env:VAULT_RESOURCE_GROUP" `
+            -CreateVault "$env:CREATE_VAULT"
