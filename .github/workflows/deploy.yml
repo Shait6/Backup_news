@@ -176,13 +176,15 @@ jobs:
 
           # Read and replace placeholders in the policy JSON
           $raw = Get-Content -Path 'modules/autoEnablePolicy.rule.json' -Raw
-          $resolved = $raw `
-            -replace '__ROLEDEFID__', [Regex]::Escape($roleId) `
-            -replace '__VAULT_NAME__', $env:VAULT_NAME `
-            -replace '__VAULT_RG__', $env:VAULT_RESOURCE_GROUP `
-            -replace '__BACKUP_POLICY__', $env:BACKUP_POLICY_NAME `
-            -replace '__TAGNAME__', $env:VM_TAG_NAME `
-            -replace '__TAGVALUE__', $env:VM_TAG_VALUE
+
+          # Use simple string replacement to avoid inserting regex-style escapes into the roleDefinitionId
+          $resolved = $raw
+          $resolved = $resolved.Replace('__ROLEDEFID__', $roleId)
+          $resolved = $resolved.Replace('__VAULT_NAME__', $env:VAULT_NAME)
+          $resolved = $resolved.Replace('__VAULT_RG__', $env:VAULT_RESOURCE_GROUP)
+          $resolved = $resolved.Replace('__BACKUP_POLICY__', $env:BACKUP_POLICY_NAME)
+          $resolved = $resolved.Replace('__TAGNAME__', $env:VM_TAG_NAME)
+          $resolved = $resolved.Replace('__TAGVALUE__', $env:VM_TAG_VALUE)
 
           $outPath = 'modules/autoEnablePolicy.resolved.json'
           $resolved | Out-File -FilePath $outPath -Encoding utf8
