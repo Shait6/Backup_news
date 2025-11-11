@@ -20,8 +20,9 @@ param backupPolicyName string
 // Role required to perform remediation (Contributor covers backup operations)
 var roleDefinitionIds = [subscriptionResourceId('Microsoft.Authorization/roleDefinitions','b24988ac-6180-42a0-ab88-20f7382dd24c')]
 
-// Policy definition: DeployIfNotExists to enable backup for tagged VMs
-var policyRuleJson = '{"if":{"allOf":[{"field":"type","equals":"Microsoft.Compute/virtualMachines"},{"field":"tags[\'${vmTagName}\']","equals":"${vmTagValue}"},{"not":{"exists":{"field":"Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems/name"}}}]},"then":{"effect":"deployIfNotExists","details":{"type":"Microsoft.Resources/deployments","roleDefinitionIds":["${roleDefinitionIds[0]}"],"deployment":{"properties":{"mode":"Incremental","parameters":{"vmId":{"value":"[field(\'fullName\')]"},"vaultName":{"value":"${vaultName}"},"vaultResourceGroup":{"value":"${vaultResourceGroup}"},"backupPolicyName":{"value":"${backupPolicyName}"}},"template":{"$schema":"https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#","contentVersion":"1.0.0.0","parameters":{"vmId":{"type":"string"},"vaultName":{"type":"string"},"vaultResourceGroup":{"type":"string"},"backupPolicyName":{"type":"string"}},"resources":[{"type":"Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems","apiVersion":"2023-04-01","name":"[concat(parameters(\'vaultName\'), \'/Azure/protectionContainers/protectedItems-\', replace(replace(parameters(\'vmId\'), \'/\', \'-\'), \':\', \'-\'))]","properties":{"protectedItemType":"Microsoft.Compute/virtualMachines","sourceResourceId":"[parameters(\'vmId\')]","policyId":"[subscriptionResourceId(\'Microsoft.RecoveryServices/vaults/backupPolicies\', parameters(\'vaultName\'), parameters(\'backupPolicyName\'))]"}}]}}}}}'
+// Load the policy rule from an external JSON file and substitute placeholders.
+var rawPolicyRule = loadTextContent('./autoEnablePolicy.rule.json')
+var policyRule = json(replace(replace(replace(replace(replace(replace(rawPolicyRule, '__TAGNAME__', vmTagName), '__TAGVALUE__', vmTagValue), '__ROLEDEFID__', roleDefinitionIds[0]), '__VAULT_NAME__', vaultName), '__VAULT_RG__', vaultResourceGroup), '__BACKUP_POLICY__', backupPolicyName))
 
 resource policyDef 'Microsoft.Authorization/policyDefinitions@2021-06-01' = {
   name: policyName
@@ -35,7 +36,7 @@ resource policyDef 'Microsoft.Authorization/policyDefinitions@2021-06-01' = {
       version: '1.0'
       createdBy: 'VM_Backup_Solution'
     }
-    policyRule: json(policyRuleJson)
+    policyRule: policyRule
   }
 }
 

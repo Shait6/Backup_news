@@ -55,10 +55,14 @@ parameters:
     - 'Both'
   default: 'Daily'
   displayName: 'Backup Frequency'
-- name: backupRetentionDays
+- name: dailyRetentionDays
   type: number
   default: '14'
-  displayName: 'Backup Retention Days'
+  displayName: 'Daily Backup Retention Days'
+- name: weeklyRetentionDays
+  type: number
+  default: '30'
+  displayName: 'Weekly Backup Retention Days'
 - name: enableAutoRemediation
   type: string
   values:
@@ -96,7 +100,8 @@ stages:
           -SubscriptionId "${{ parameters.subscriptionId }}"
           -VaultName "${{ parameters.vaultName }}"
           -BackupPolicyName "${{ parameters.backupPolicyName }}"
-          -BackupRetentionDays ${{ parameters.backupRetentionDays }}
+          -DailyRetentionDays ${{ parameters.dailyRetentionDays }}
+          -WeeklyRetentionDays ${{ parameters.weeklyRetentionDays }}
           -VaultSkuName "${{ parameters.vaultSkuName }}" \
           -VaultSkuTier "${{ parameters.vaultSkuTier }}"
         azurePowerShellVersion: 'LatestVersion'
