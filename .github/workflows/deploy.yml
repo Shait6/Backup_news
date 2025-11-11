@@ -53,6 +53,10 @@ on:
         description: 'Vault Name'
         required: false
         default: 'rsv-backup-default'
+      vaultResourceGroup:
+        description: 'Vault Resource Group (for existing or new vault)'
+        required: false
+        default: 'rg-vault-default'
       backupPolicyName:
         description: 'Backup Policy Name'
         required: false
@@ -71,14 +75,14 @@ jobs:
     runs-on: windows-latest
 
     env:
-      # Static values (can be adjusted as needed)
+      # Static defaults
       MANAGEMENT_GROUP_ID: ''
       VM_TAG_NAME: 'backup'
       VM_TAG_VALUE: 'true'
       VAULT_SKU_NAME: 'RS0'
       VAULT_SKU_TIER: 'Standard'
-      VAULT_RESOURCE_GROUP: ''
-      # Map workflow inputs
+
+      # Map inputs
       SUBSCRIPTION_ID: ${{ github.event.inputs.subscriptionId }}
       LOCATION: ${{ github.event.inputs.location }}
       ENABLE_BACKUP: ${{ github.event.inputs.enableBackup }}
@@ -86,6 +90,7 @@ jobs:
       ENABLE_AUTO_REMEDIATION: ${{ github.event.inputs.enableAutoRemediation }}
       CREATE_VAULT: ${{ github.event.inputs.createVault }}
       VAULT_NAME: ${{ github.event.inputs.vaultName }}
+      VAULT_RESOURCE_GROUP: ${{ github.event.inputs.vaultResourceGroup }}
       BACKUP_POLICY_NAME: ${{ github.event.inputs.backupPolicyName }}
       RESOURCE_GROUP_NAME: ${{ github.event.inputs.resourceGroupName }}
       BACKUP_RETENTION_DAYS: ${{ github.event.inputs.backupRetentionDays }}
@@ -94,13 +99,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 🔐 Azure Login using your existing secret
+      # 🔐 Azure login using service principal stored in GitHub secret
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.serivcon }}
 
-      # 🧩 Initialize Azure PowerShell context (done once)
+      # 🧩 Initialize Azure PowerShell session
       - name: Initialize Azure session for PowerShell
         shell: pwsh
         run: |
@@ -109,6 +114,7 @@ jobs:
           Connect-AzAccount -Identity
           Save-AzContext -Path "$env:USERPROFILE\azurecontext.json" -Force
 
+      # 🧱 Prepare parameters
       - name: Prepare Deployment Parameters
         shell: pwsh
         run: |
@@ -122,6 +128,7 @@ jobs:
             -VaultSkuName "$env:VAULT_SKU_NAME" `
             -VaultSkuTier "$env:VAULT_SKU_TIER"
 
+      # 🏗️ Create resource group
       - name: Create Resource Group
         shell: pwsh
         run: |
@@ -130,6 +137,7 @@ jobs:
             -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
             -Location "$env:LOCATION"
 
+      # 💾 Deploy backup infra
       - name: Deploy Backup Infrastructure
         if: ${{ env.ENABLE_BACKUP == 'true' }}
         shell: pwsh
@@ -144,6 +152,7 @@ jobs:
             -VaultSkuName "$env:VAULT_SKU_NAME" `
             -VaultSkuTier "$env:VAULT_SKU_TIER"
 
+      # 🛡️ Deploy auto-enable policy
       - name: Deploy Auto-Enable Policy
         if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
         shell: pwsh
@@ -157,4 +166,4 @@ jobs:
             -BackupPolicyName "$env:BACKUP_POLICY_NAME" `
             -VaultName "$env:VAULT_NAME" `
             -VaultResourceGroup "$env:VAULT_RESOURCE_GROUP" `
-            -Creat
+            -CreateVault "$env:CREATE_VAULT"
