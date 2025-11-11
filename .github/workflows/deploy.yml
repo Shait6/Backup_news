@@ -124,75 +124,41 @@ jobs:
       # 🏗️ Create resource group
       - name: Create Resource Group
         shell: pwsh
-        env:
-          AZUREPS_HOST_ENVIRONMENT: AzurePipelines
-          AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
-          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser
-          Import-Module Az.Accounts -Force
-          $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
-          Write-Host "clientId: $($creds.clientId)"
-          Write-Host "tenantId: $($creds.tenantId)"
-          Write-Host "subscriptionId: $($creds.subscriptionId)"
-          Write-Host "clientSecret length: $($creds.clientSecret.Length)"
-          $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
-          $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
-          Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
-          ./scripts/Create-ResourceGroup.ps1 `
-            -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
-            -Location "$env:LOCATION"
+          # Azure CLI login is already handled by azure/login action
+          az group create --name "$env:RESOURCE_GROUP_NAME" --location "$env:LOCATION"
 
       # 💾 Deploy backup infrastructure
       - name: Deploy Backup Infrastructure
         if: ${{ env.ENABLE_BACKUP == 'true' }}
         shell: pwsh
-        env:
-          AZUREPS_HOST_ENVIRONMENT: AzurePipelines
-          AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
-          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser
-          Import-Module Az.Accounts -Force
-          $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
-          Write-Host "clientId: $($creds.clientId)"
-          Write-Host "tenantId: $($creds.tenantId)"
-          Write-Host "subscriptionId: $($creds.subscriptionId)"
-          Write-Host "clientSecret length: $($creds.clientSecret.Length)"
-          $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
-          $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
-          Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
-          ./scripts/Deploy-Backup.ps1 `
-            -ResourceGroupName "$env:RESOURCE_GROUP_NAME" `
-            -Location "$env:LOCATION" `
-            -VaultName "$env:VAULT_NAME" `
-            -BackupPolicyName "$env:BACKUP_POLICY_NAME" `
-            -BackupFrequency "$env:BACKUP_FREQUENCY" `
-            -VaultSkuName "$env:VAULT_SKU_NAME" `
-            -VaultSkuTier "$env:VAULT_SKU_TIER"
+          # Azure CLI login is already handled by azure/login action
+          az deployment group create \
+            --resource-group "$env:RESOURCE_GROUP_NAME" \
+            --template-file "main.bicep" \
+            --parameters \
+              location="$env:LOCATION" \
+              vaultName="$env:VAULT_NAME" \
+              backupPolicyName="$env:BACKUP_POLICY_NAME" \
+              backupFrequency="$env:BACKUP_FREQUENCY" \
+              vaultSkuName="$env:VAULT_SKU_NAME" \
+              vaultSkuTier="$env:VAULT_SKU_TIER"
 
       # 🛡️ Deploy auto-enable policy
       - name: Deploy Auto-Enable Policy
         if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
         shell: pwsh
-        env:
-          AZUREPS_HOST_ENVIRONMENT: AzurePipelines
-          AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
-          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser
-          Import-Module Az.Accounts -Force
-          $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
-          Write-Host "clientId: $($creds.clientId)"
-          Write-Host "tenantId: $($creds.tenantId)"
-          Write-Host "subscriptionId: $($creds.subscriptionId)"
-          Write-Host "clientSecret length: $($creds.clientSecret.Length)"
-          $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
-          $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
-          Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
-          ./scripts/Deploy-AutoEnablePolicySubscription.ps1 `
-            -SubscriptionId "$env:SUBSCRIPTION_ID" `
-            -Location "$env:LOCATION" `
-            -VmTagName "$env:VM_TAG_NAME" `
-            -VmTagValue "$env:VM_TAG_VALUE" `
-            -BackupPolicyName "$env:BACKUP_POLICY_NAME" `
-            -VaultName "$env:VAULT_NAME" `
-            -VaultResourceGroup "$env:VAULT_RESOURCE_GROUP" `
-            -CreateVault "$env:CREATE_VAULT"
+          # Azure CLI login is already handled by azure/login action
+          az deployment sub create \
+            --location "$env:LOCATION" \
+            --template-file "modules/backupAutoEnablePolicy.bicep" \
+            --parameters \
+              subscriptionId="$env:SUBSCRIPTION_ID" \
+              vmTagName="$env:VM_TAG_NAME" \
+              vmTagValue="$env:VM_TAG_VALUE" \
+              backupPolicyName="$env:BACKUP_POLICY_NAME" \
+              vaultName="$env:VAULT_NAME" \
+              vaultResourceGroup="$env:VAULT_RESOURCE_GROUP" \
+              createVault="$env:CREATE_VAULT"
