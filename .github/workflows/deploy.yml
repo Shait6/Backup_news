@@ -112,6 +112,10 @@ jobs:
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
           $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
+          Write-Host "clientId: $($creds.clientId)"
+          Write-Host "tenantId: $($creds.tenantId)"
+          Write-Host "subscriptionId: $($creds.subscriptionId)"
+          Write-Host "clientSecret length: $($creds.clientSecret.Length)"
           $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
           Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
@@ -132,6 +136,10 @@ jobs:
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
           $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
+          Write-Host "clientId: $($creds.clientId)"
+          Write-Host "tenantId: $($creds.tenantId)"
+          Write-Host "subscriptionId: $($creds.subscriptionId)"
+          Write-Host "clientSecret length: $($creds.clientSecret.Length)"
           $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
           Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
@@ -148,6 +156,10 @@ jobs:
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
           $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
+          Write-Host "clientId: $($creds.clientId)"
+          Write-Host "tenantId: $($creds.tenantId)"
+          Write-Host "subscriptionId: $($creds.subscriptionId)"
+          Write-Host "clientSecret length: $($creds.clientSecret.Length)"
           $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
           Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
@@ -169,6 +181,10 @@ jobs:
           AZURE_CREDENTIALS: ${{ secrets.serivcon }}
         run: |
           $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json
+          Write-Host "clientId: $($creds.clientId)"
+          Write-Host "tenantId: $($creds.tenantId)"
+          Write-Host "subscriptionId: $($creds.subscriptionId)"
+          Write-Host "clientSecret length: $($creds.clientSecret.Length)"
           $sec = ConvertTo-SecureString $creds.clientSecret -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential ($creds.clientId, $sec)
           Connect-AzAccount -ServicePrincipal -Tenant $creds.tenantId -ApplicationId $creds.clientId -Credential $cred -Subscription $creds.subscriptionId
