@@ -55,7 +55,7 @@ on:
       backupRetentionDays:
         description: 'Backup Retention Days'
         required: false
-        default: 14
+        default: '14'
 
 jobs:
   deploy:
