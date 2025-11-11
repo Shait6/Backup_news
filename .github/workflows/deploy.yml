@@ -96,6 +96,8 @@ jobs:
       # 🧩 Initialize Azure PowerShell session (context already set by azure/login)
       - name: Initialize Azure PowerShell Session
         shell: pwsh
+        env:
+          AZUREPS_HOST_ENVIRONMENT: AzurePipelines
         run: |
           Install-Module Az.Accounts -Force -AllowClobber -Scope CurrentUser
           Install-Module Az.Resources -Force -AllowClobber -Scope CurrentUser
@@ -105,6 +107,8 @@ jobs:
       # 🧱 Prepare parameters
       - name: Prepare Deployment Parameters
         shell: pwsh
+        env:
+          AZUREPS_HOST_ENVIRONMENT: AzurePipelines
         run: |
           Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
           ./scripts/Set-DeploymentParameters.ps1 `
@@ -119,6 +123,8 @@ jobs:
       # 🏗️ Create resource group
       - name: Create Resource Group
         shell: pwsh
+        env:
+          AZUREPS_HOST_ENVIRONMENT: AzurePipelines
         run: |
           Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
           ./scripts/Create-ResourceGroup.ps1 `
@@ -129,6 +135,8 @@ jobs:
       - name: Deploy Backup Infrastructure
         if: ${{ env.ENABLE_BACKUP == 'true' }}
         shell: pwsh
+        env:
+          AZUREPS_HOST_ENVIRONMENT: AzurePipelines
         run: |
           Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
           ./scripts/Deploy-Backup.ps1 `
@@ -144,6 +152,8 @@ jobs:
       - name: Deploy Auto-Enable Policy
         if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
         shell: pwsh
+        env:
+          AZUREPS_HOST_ENVIRONMENT: AzurePipelines
         run: |
           Import-AzContext -Path "$env:USERPROFILE\azurecontext.json" | Out-Null
           ./scripts/Deploy-AutoEnablePolicySubscription.ps1 `
