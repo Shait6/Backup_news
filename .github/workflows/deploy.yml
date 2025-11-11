@@ -107,7 +107,17 @@ jobs:
         run: |
           Install-Module Az.Accounts -Force -AllowClobber -Scope CurrentUser
           Install-Module Az.Resources -Force -AllowClobber -Scope CurrentUser
-          Connect-AzAccount -Identity
+                - name: Initialize Azure PowerShell Session
+        shell: pwsh
+        run: |
+          Install-Module Az.Accounts -Force -AllowClobber -Scope CurrentUser
+          Install-Module Az.Resources -Force -AllowClobber -Scope CurrentUser
+          Connect-AzAccount `
+            -ServicePrincipal `
+            -Tenant $env:AZURE_TENANT_ID `
+            -ApplicationId $env:AZURE_CLIENT_ID `
+            -Credential (New-Object System.Management.Automation.PSCredential($env:AZURE_CLIENT_ID, (ConvertTo-SecureString $env:AZURE_CLIENT_SECRET -AsPlainText -Force))) `
+            -Subscription $env:AZURE_SUBSCRIPTION_ID
           Save-AzContext -Path "$env:USERPROFILE\azurecontext.json" -Force
 
       # 🧱 Prepare deployment parameters
