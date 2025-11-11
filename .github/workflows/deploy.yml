@@ -91,16 +91,15 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.serivcon }}
+          enableAzPSSession: true
 
-      # 🧩 Initialize Azure PowerShell session using SP credentials
+      # 🧩 Initialize Azure PowerShell session (context already set by azure/login)
       - name: Initialize Azure PowerShell Session
         shell: pwsh
         run: |
           Install-Module Az.Accounts -Force -AllowClobber -Scope CurrentUser
           Install-Module Az.Resources -Force -AllowClobber -Scope CurrentUser
-          $sec = ConvertTo-SecureString $env:AZURE_CLIENT_SECRET -AsPlainText -Force
-          $cred = New-Object System.Management.Automation.PSCredential ($env:AZURE_CLIENT_ID, $sec)
-          Connect-AzAccount -ServicePrincipal -Tenant $env:AZURE_TENANT_ID -ApplicationId $env:AZURE_CLIENT_ID -Credential $cred -Subscription $env:AZURE_SUBSCRIPTION_ID
+          # Context is already set by azure/login with enableAzPSSession: true
           Save-AzContext -Path "$env:USERPROFILE\azurecontext.json" -Force
 
       # 🧱 Prepare parameters

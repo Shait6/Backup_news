@@ -65,7 +65,7 @@ Vault SKU
 - `vaultSkuName`: Recovery Services Vault SKU name (default: `RS0`)
 - `vaultSkuTier`: Recovery Services Vault SKU tier (default: `Standard`)
 
-Note: this template does not configure backup storage replication automatically. The recommended replication for production scenarios is GRS. If you need a different replication setting, configure it after the vault is created using the Azure portal or Az PowerShell/CLI.
+
 
 ## Dry-run validation (build + WhatIf)
 Before running the pipeline in production, validate the Bicep templates locally and perform a subscription-scoped WhatIf to confirm no unexpected resources will be created.
