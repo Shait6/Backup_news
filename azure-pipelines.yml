@@ -174,3 +174,74 @@ stages:
           -VaultResourceGroup "${{ parameters.vaultResourceGroup }}" \
           -CreateVault "${{ parameters.createVault }}"
         azurePowerShellVersion: 'LatestVersion'
+
+    - task: AzureCLI@2
+      displayName: 'Ensure policy assignment has system-assigned identity and grant Contributor on vault RG'
+      inputs:
+        azureSubscription: 'bicep_deploy_SC'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          $subscriptionId = "${{ parameters.subscriptionId }}"
+          $assignmentName = 'enable-vm-backup-assignment'
+          $policyName = 'deployifnotexists-enable-vm-backup'
+          $vaultRg = "${{ parameters.vaultResourceGroup }}"
+
+          $scope = "/subscriptions/$subscriptionId"
+
+          Write-Host "Resolving policy id for $policyName"
+          $policyId = az policy definition show --name $policyName --query id -o tsv
+          if (-not $policyId) { Write-Error "Policy definition $policyName not found"; exit 1 }
+
+          # create or update assignment with system assigned identity
+          $exists = az policy assignment show --name $assignmentName --scope $scope --query name -o tsv 2>$null
+          if ($exists) {
+            Write-Host "Updating assignment $assignmentName to ensure system-assigned identity"
+            az policy assignment update --name $assignmentName --scope $scope --policy $policyId --display-name 'Enable VM backup for tagged VMs' --identity '{"type":"SystemAssigned"}'
+          } else {
+            Write-Host "Creating assignment $assignmentName with system-assigned identity"
+            az policy assignment create --name $assignmentName --scope $scope --policy $policyId --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --identity '{"type":"SystemAssigned"}'
+          }
+
+          # wait for identity to be provisioned and get principalId
+          $principalId = $null
+          $retries = 0
+          while (-not $principalId -and $retries -lt 12) {
+            Start-Sleep -Seconds 5
+            $principalId = az policy assignment show --name $assignmentName --scope $scope --query identity.principalId -o tsv 2>$null
+            $retries++
+          }
+          if (-not $principalId) { Write-Error "Managed identity not available for policy assignment $assignmentName"; exit 1 }
+          Write-Host "Managed identity principalId: $principalId"
+
+          # grant Contributor on the vault resource group
+          $rgScope = "/subscriptions/$subscriptionId/resourceGroups/$vaultRg"
+          Write-Host "Assigning Contributor role to principal $principalId on $rgScope"
+          try {
+            az role assignment create --assignee-object-id $principalId --role "Contributor" --scope $rgScope | Out-Null
+            Write-Host "Role assignment created"
+          } catch {
+            Write-Host "Role assignment may already exist or failed: $($_.Exception.Message)"
+          }
+
+    - task: AzureCLI@2
+      displayName: 'Create subscription-scoped policy assignment via bicep using UAI'
+      inputs:
+        azureSubscription: 'bicep_deploy_SC'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -euo pipefail
+          subscriptionId="${{ parameters.subscriptionId }}"
+          rgName="${{ parameters.resourceGroupName }}"
+          policyName='deployifnotexists-enable-vm-backup'
+          echo "Retrieving user-assigned identity id from resource group deployment outputs..."
+          identityId=$(az deployment group show --name main --resource-group "$rgName" --query properties.outputs.userAssignedIdentityId.value -o tsv)
+          if [ -z "$identityId" ]; then
+            echo "Failed to get userAssignedIdentityId from group deployment outputs"
+            exit 1
+          fi
+          echo "Found identity id: $identityId"
+
+          echo "Creating subscription deployment to create policy assignment using the UAI"
+          az deployment sub create --name assign-policy --template-file deploy-policy-subscription.bicep --parameters assignmentName='enable-vm-backup-assignment' policyDefinitionName=$policyName userAssignedIdentityId=$identityId

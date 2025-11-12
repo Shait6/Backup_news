@@ -250,10 +250,41 @@ jobs:
 
           # Create or update the assignment at subscription scope
           $assignExists = az policy assignment show --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --query name -o tsv 2>$null
+
+          # Create or update policy assignment WITH a system-assigned managed identity (required for DeployIfNotExists with deployment).
           if ($assignExists) {
-            az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs'
+            Write-Host "Updating existing policy assignment '$assignmentName' to ensure it has a system-assigned identity..."
+            az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --identity '{"type":"SystemAssigned"}'
           } else {
-            az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.'
+            Write-Host "Creating policy assignment '$assignmentName' with system-assigned identity..."
+            az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --identity '{"type":"SystemAssigned"}'
+          }
+
+          # Retrieve the principalId for the assignment identity. Retry until identity is provisioned.
+          $principalId = $null
+          $retries = 0
+          while (-not $principalId -and $retries -lt 12) {
+            Start-Sleep -Seconds 5
+            $principalId = az policy assignment show --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --query identity.principalId -o tsv 2>$null
+            $retries++
+          }
+
+          if (-not $principalId) {
+            Write-Error "Failed to obtain managed identity principalId for policy assignment '$assignmentName' after waiting. The assignment may not have provisioned its identity yet."
+            exit 1
+          }
+
+          Write-Host "Managed identity principalId: $principalId"
+
+          # Grant Contributor role on the vault resource group so the identity can create protected items in the vault.
+          $rgScope = "/subscriptions/$env:SUBSCRIPTION_ID/resourceGroups/$env:VAULT_RESOURCE_GROUP"
+          Write-Host "Assigning Contributor role to the policy assignment identity on scope: $rgScope"
+          # Create role assignment; allow failure if the assignment already exists
+          try {
+            az role assignment create --assignee-object-id $principalId --role "Contributor" --scope $rgScope | Out-Null
+            Write-Host "Role assignment created successfully."
+          } catch {
+            Write-Host "Role assignment may already exist or failed to create: $($_.Exception.Message)"
           }
 
       - name: Upload resolved policy JSON (artifact)
@@ -262,3 +293,27 @@ jobs:
         with:
           name: autoEnablePolicy.resolved.json
           path: modules/autoEnablePolicy.resolved.json
+
+      # 🧩 Deploy subscription-scoped policy assignment using the user-assigned identity created in the resource group deployment
+      - name: Deploy subscription-scoped policy assignment using UAI
+        if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          az account set --subscription "$SUBSCRIPTION_ID"
+
+          echo "Retrieving user-assigned identity resource id from resource group deployment outputs..."
+          identityId=$(az deployment group show --name main --resource-group "$RESOURCE_GROUP_NAME" --query properties.outputs.userAssignedIdentityId.value -o tsv)
+          if [ -z "${identityId}" ]; then
+            echo "Failed to resolve user-assigned identity id from deployment outputs."
+            exit 1
+          fi
+          echo "Found identity: $identityId"
+
+          # Ensure the policy definition exists (created earlier by the preprocessing step)
+          policyName='deployifnotexists-enable-vm-backup'
+          echo "Creating subscription deployment to assign policy using UAI..."
+          az deployment sub create \
+            --name assign-policy \
+            --template-file deploy-policy-subscription.bicep \
+            --parameters assignmentName='enable-vm-backup-assignment' policyDefinitionName=$policyName userAssignedIdentityId="$identityId"

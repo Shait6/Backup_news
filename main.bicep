@@ -62,7 +62,31 @@ module policyModule './modules/backupPolicy.bicep' = {
   dependsOn: [vaultModule]
 }
 
+// Create a User Assigned Identity in the same resource group to be used by subscription-scoped policy assignment
+module uaiModule './modules/userAssignedIdentity.bicep' = {
+  name: 'userAssignedIdentityModule'
+  params: {
+    identityName: '${vaultName}-backup-remediator'
+    location: location
+  }
+  dependsOn: [vaultModule]
+}
+
+// Grant the identity a role on the vault resource group so it can operate the vault during remediation.
+// Default role used is Contributor; a custom role may be provided instead via roleDefinitionId param.
+param remediationRoleDefinitionId string = subscriptionResourceId('Microsoft.Authorization/roleDefinitions','b24988ac-6180-42a0-ab88-20f7382dd24c')
+
+module roleAssign './modules/roleAssignment.bicep' = {
+  name: 'roleAssignmentModule'
+  params: {
+    principalId: uaiModule.outputs.principalId
+    roleDefinitionId: remediationRoleDefinitionId
+  }
+}
+
 // Export module outputs
 output vaultId string = vaultModule.outputs.vaultId
 output backupPolicyIds array = policyModule.outputs.backupPolicyIds
 output backupPolicyNames array = policyModule.outputs.backupPolicyNames
+output userAssignedIdentityId string = uaiModule.outputs.identityResourceId
+output userAssignedIdentityPrincipalId string = uaiModule.outputs.principalId

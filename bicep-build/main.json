@@ -1,0 +1,522 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.33.27573",
+      "templateHash": "16933589175303904597"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Location for all resources"
+      }
+    },
+    "vaultName": {
+      "type": "string"
+    },
+    "backupPolicyName": {
+      "type": "string"
+    },
+    "backupScheduleRunTimes": {
+      "type": "array",
+      "defaultValue": [
+        "01:00"
+      ]
+    },
+    "dailyRetentionDays": {
+      "type": "int",
+      "defaultValue": 14,
+      "metadata": {
+        "description": "Retention in days for daily backups"
+      }
+    },
+    "weeklyRetentionDays": {
+      "type": "int",
+      "defaultValue": 30,
+      "metadata": {
+        "description": "Retention in days for weekly backups"
+      }
+    },
+    "weeklyBackupDaysOfWeek": {
+      "type": "array",
+      "defaultValue": [
+        "Sunday",
+        "Wednesday"
+      ]
+    },
+    "backupFrequency": {
+      "type": "string",
+      "defaultValue": "Daily",
+      "allowedValues": [
+        "Daily",
+        "Weekly",
+        "Both"
+      ],
+      "metadata": {
+        "description": "Backup frequency - choose Daily, Weekly or Both"
+      }
+    },
+    "publicNetworkAccess": {
+      "type": "string",
+      "defaultValue": "Enabled",
+      "allowedValues": [
+        "Enabled",
+        "Disabled"
+      ]
+    },
+    "vaultSkuName": {
+      "type": "string",
+      "defaultValue": "RS0",
+      "metadata": {
+        "description": "Recovery Services Vault SKU name (e.g. RS0)"
+      }
+    },
+    "vaultSkuTier": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "metadata": {
+        "description": "Recovery Services Vault SKU tier (e.g. Standard)"
+      }
+    },
+    "remediationRoleDefinitionId": {
+      "type": "string",
+      "defaultValue": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "recoveryVaultModule",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "vaultName": {
+            "value": "[parameters('vaultName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "publicNetworkAccess": {
+            "value": "[parameters('publicNetworkAccess')]"
+          },
+          "skuName": {
+            "value": "[parameters('vaultSkuName')]"
+          },
+          "skuTier": {
+            "value": "[parameters('vaultSkuTier')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "3068112539063637336"
+            }
+          },
+          "parameters": {
+            "vaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Recovery Services Vault"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location for the vault"
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "RS0",
+              "metadata": {
+                "description": "SKU name for the Recovery Services Vault (e.g. RS0)"
+              }
+            },
+            "skuTier": {
+              "type": "string",
+              "defaultValue": "Standard",
+              "metadata": {
+                "description": "SKU tier for the Recovery Services Vault (e.g. Standard)"
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Enabled",
+              "allowedValues": [
+                "Enabled",
+                "Disabled"
+              ]
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.RecoveryServices/vaults",
+              "apiVersion": "2025-02-01",
+              "name": "[parameters('vaultName')]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('skuTier')]"
+              },
+              "properties": {
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+                "restoreSettings": {
+                  "crossSubscriptionRestoreSettings": {
+                    "crossSubscriptionRestoreState": "Enabled"
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "vaultId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.RecoveryServices/vaults', parameters('vaultName'))]"
+            },
+            "vaultName": {
+              "type": "string",
+              "value": "[parameters('vaultName')]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "backupPolicyModule",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "vaultName": {
+            "value": "[parameters('vaultName')]"
+          },
+          "backupPolicyName": {
+            "value": "[parameters('backupPolicyName')]"
+          },
+          "backupFrequency": {
+            "value": "[parameters('backupFrequency')]"
+          },
+          "backupScheduleRunTimes": {
+            "value": "[parameters('backupScheduleRunTimes')]"
+          },
+          "weeklyBackupDaysOfWeek": {
+            "value": "[parameters('weeklyBackupDaysOfWeek')]"
+          },
+          "dailyRetentionDays": {
+            "value": "[parameters('dailyRetentionDays')]"
+          },
+          "weeklyRetentionDays": {
+            "value": "[parameters('weeklyRetentionDays')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "886414619926796100"
+            }
+          },
+          "parameters": {
+            "vaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Parent Recovery Services Vault resource name"
+              }
+            },
+            "backupPolicyName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the backup policy"
+              }
+            },
+            "backupFrequency": {
+              "type": "string",
+              "defaultValue": "Daily",
+              "allowedValues": [
+                "Daily",
+                "Weekly",
+                "Both"
+              ],
+              "metadata": {
+                "description": "Backup frequency: Daily, Weekly, or Both"
+              }
+            },
+            "backupScheduleRunTimes": {
+              "type": "array",
+              "metadata": {
+                "description": "Backup run times (UTC). Example: [ \"02:30\", \"14:00\" ] or full ISO times depending on API expectations."
+              }
+            },
+            "weeklyBackupDaysOfWeek": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "Weekly run days (used when backupFrequency == \"Weekly\"). Example: [ \"Sunday\", \"Wednesday\" ]"
+              }
+            },
+            "dailyRetentionDays": {
+              "type": "int",
+              "defaultValue": 14,
+              "metadata": {
+                "description": "Retention in days for daily backups"
+              }
+            },
+            "weeklyRetentionDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "metadata": {
+                "description": "Retention in days for weekly backups"
+              }
+            }
+          },
+          "variables": {
+            "dailyPolicyId": "[if(or(equals(parameters('backupFrequency'), 'Daily'), equals(parameters('backupFrequency'), 'Both')), resourceId('Microsoft.RecoveryServices/vaults/backupPolicies', parameters('vaultName'), if(equals(parameters('backupFrequency'), 'Both'), format('{0}-daily', parameters('backupPolicyName')), parameters('backupPolicyName'))), '')]",
+            "weeklyPolicyId": "[if(or(equals(parameters('backupFrequency'), 'Weekly'), equals(parameters('backupFrequency'), 'Both')), resourceId('Microsoft.RecoveryServices/vaults/backupPolicies', parameters('vaultName'), if(equals(parameters('backupFrequency'), 'Both'), format('{0}-weekly', parameters('backupPolicyName')), parameters('backupPolicyName'))), '')]",
+            "dailyPolicyName": "[if(or(equals(parameters('backupFrequency'), 'Daily'), equals(parameters('backupFrequency'), 'Both')), if(equals(parameters('backupFrequency'), 'Both'), format('{0}-daily', parameters('backupPolicyName')), parameters('backupPolicyName')), '')]",
+            "weeklyPolicyName": "[if(or(equals(parameters('backupFrequency'), 'Weekly'), equals(parameters('backupFrequency'), 'Both')), if(equals(parameters('backupFrequency'), 'Both'), format('{0}-weekly', parameters('backupPolicyName')), parameters('backupPolicyName')), '')]"
+          },
+          "resources": [
+            {
+              "condition": "[or(equals(parameters('backupFrequency'), 'Daily'), equals(parameters('backupFrequency'), 'Both'))]",
+              "type": "Microsoft.RecoveryServices/vaults/backupPolicies",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}/{1}', parameters('vaultName'), if(equals(parameters('backupFrequency'), 'Both'), format('{0}-daily', parameters('backupPolicyName')), parameters('backupPolicyName')))]",
+              "properties": {
+                "backupManagementType": "AzureIaasVM",
+                "schedulePolicy": {
+                  "schedulePolicyType": "SimpleSchedulePolicy",
+                  "scheduleRunFrequency": "Daily",
+                  "scheduleRunTimes": "[parameters('backupScheduleRunTimes')]"
+                },
+                "retentionPolicy": {
+                  "retentionPolicyType": "LongTermRetentionPolicy",
+                  "dailySchedule": {
+                    "retentionTimes": "[parameters('backupScheduleRunTimes')]",
+                    "retentionDuration": {
+                      "count": "[parameters('dailyRetentionDays')]",
+                      "durationType": "Days"
+                    }
+                  }
+                },
+                "timeZone": "UTC"
+              }
+            },
+            {
+              "condition": "[or(equals(parameters('backupFrequency'), 'Weekly'), equals(parameters('backupFrequency'), 'Both'))]",
+              "type": "Microsoft.RecoveryServices/vaults/backupPolicies",
+              "apiVersion": "2023-04-01",
+              "name": "[format('{0}/{1}', parameters('vaultName'), if(equals(parameters('backupFrequency'), 'Both'), format('{0}-weekly', parameters('backupPolicyName')), parameters('backupPolicyName')))]",
+              "properties": {
+                "backupManagementType": "AzureIaasVM",
+                "schedulePolicy": {
+                  "schedulePolicyType": "SimpleSchedulePolicy",
+                  "scheduleRunFrequency": "Weekly",
+                  "scheduleRunTimes": "[parameters('backupScheduleRunTimes')]",
+                  "scheduleRunDays": "[parameters('weeklyBackupDaysOfWeek')]"
+                },
+                "retentionPolicy": {
+                  "retentionPolicyType": "LongTermRetentionPolicy",
+                  "weeklySchedule": {
+                    "retentionTimes": "[parameters('backupScheduleRunTimes')]",
+                    "retentionDuration": {
+                      "count": "[parameters('weeklyRetentionDays')]",
+                      "durationType": "Days"
+                    }
+                  }
+                },
+                "timeZone": "UTC"
+              }
+            }
+          ],
+          "outputs": {
+            "backupPolicyIds": {
+              "type": "array",
+              "value": "[concat(if(not(equals(variables('dailyPolicyId'), '')), createArray(variables('dailyPolicyId')), createArray()), if(not(equals(variables('weeklyPolicyId'), '')), createArray(variables('weeklyPolicyId')), createArray()))]"
+            },
+            "backupPolicyNames": {
+              "type": "array",
+              "value": "[concat(if(not(equals(variables('dailyPolicyName'), '')), createArray(variables('dailyPolicyName')), createArray()), if(not(equals(variables('weeklyPolicyName'), '')), createArray(variables('weeklyPolicyName')), createArray()))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'recoveryVaultModule')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "userAssignedIdentityModule",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "identityName": {
+            "value": "[format('{0}-backup-remediator', parameters('vaultName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "16715040992893307572"
+            }
+          },
+          "parameters": {
+            "identityName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the user assigned identity to create"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location for the identity"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2018-11-30",
+              "name": "[parameters('identityName')]",
+              "location": "[parameters('location')]"
+            }
+          ],
+          "outputs": {
+            "identityResourceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName'))]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('identityName')), '2018-11-30').principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'recoveryVaultModule')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "roleAssignmentModule",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'userAssignedIdentityModule'), '2025-04-01').outputs.principalId.value]"
+          },
+          "roleDefinitionId": {
+            "value": "[parameters('remediationRoleDefinitionId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.38.33.27573",
+              "templateHash": "13455880165287397241"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal object id (GUID) to give the role to"
+              }
+            },
+            "roleDefinitionId": {
+              "type": "string",
+              "metadata": {
+                "description": "Role definition id or resource id of the role definition. If only a GUID is provided it will be converted to a subscription-scoped roleDefinition resource id."
+              }
+            }
+          },
+          "variables": {
+            "roleDefIdResolved": "[if(contains(parameters('roleDefinitionId'), '/'), parameters('roleDefinitionId'), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId')))]",
+            "roleAssignmentName": "[guid(resourceGroup().id, parameters('principalId'), variables('roleDefIdResolved'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2020-04-01-preview",
+              "name": "[variables('roleAssignmentName')]",
+              "properties": {
+                "roleDefinitionId": "[variables('roleDefIdResolved')]",
+                "principalId": "[parameters('principalId')]"
+              }
+            }
+          ],
+          "outputs": {
+            "roleAssignmentId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Authorization/roleAssignments', variables('roleAssignmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'userAssignedIdentityModule')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vaultId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'recoveryVaultModule'), '2025-04-01').outputs.vaultId.value]"
+    },
+    "backupPolicyIds": {
+      "type": "array",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'backupPolicyModule'), '2025-04-01').outputs.backupPolicyIds.value]"
+    },
+    "backupPolicyNames": {
+      "type": "array",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'backupPolicyModule'), '2025-04-01').outputs.backupPolicyNames.value]"
+    },
+    "userAssignedIdentityId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'userAssignedIdentityModule'), '2025-04-01').outputs.identityResourceId.value]"
+    },
+    "userAssignedIdentityPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'userAssignedIdentityModule'), '2025-04-01').outputs.principalId.value]"
+    }
+  }
+}
