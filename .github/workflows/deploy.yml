@@ -269,10 +269,10 @@ jobs:
           # Create or update policy assignment WITH a system-assigned managed identity (required for DeployIfNotExists with deployment).
           if ($assignExists) {
             Write-Host "Updating existing policy assignment '$assignmentName' to ensure it has a system-assigned identity..."
-            az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --identity '{"type":"SystemAssigned"}'
+            az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --identity '{"type":"SystemAssigned"}' --location "$env:LOCATION"
           } else {
             Write-Host "Creating policy assignment '$assignmentName' with system-assigned identity..."
-            az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --identity '{"type":"SystemAssigned"}'
+            az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --identity '{"type":"SystemAssigned"}' --location "$env:LOCATION"
           }
 
           # Retrieve the principalId for the assignment identity. Retry until identity is provisioned.

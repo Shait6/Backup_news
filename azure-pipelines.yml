@@ -235,10 +235,10 @@ stages:
           $exists = az policy assignment show --name $assignmentName --scope $scope --query name -o tsv 2>$null
           if ($exists) {
             Write-Host "Updating assignment $assignmentName to ensure system-assigned identity"
-            az policy assignment update --name $assignmentName --scope $scope --policy $policyId --display-name 'Enable VM backup for tagged VMs' --identity '{"type":"SystemAssigned"}'
+            az policy assignment update --name $assignmentName --scope $scope --policy $policyId --display-name 'Enable VM backup for tagged VMs' --identity '{"type":"SystemAssigned"}' --location "${{ parameters.location }}"
           } else {
             Write-Host "Creating assignment $assignmentName with system-assigned identity"
-            az policy assignment create --name $assignmentName --scope $scope --policy $policyId --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --identity '{"type":"SystemAssigned"}'
+            az policy assignment create --name $assignmentName --scope $scope --policy $policyId --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --identity '{"type":"SystemAssigned"}' --location "${{ parameters.location }}"
           }
 
           # wait for identity to be provisioned and get principalId
