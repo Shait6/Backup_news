@@ -105,11 +105,15 @@ stages:
           -VaultSkuName "${{ parameters.vaultSkuName }}" \
           -VaultSkuTier "${{ parameters.vaultSkuTier }}"
         azurePowerShellVersion: 'LatestVersion'
-    - task: PublishPipelineArtifact@1
+    - task: AzureCLI@2
+      displayName: 'Validate deployment (pre-check)'
       inputs:
-        targetPath: '$(System.DefaultWorkingDirectory)/main.parameters.json'
-        artifactName: 'main.parameters.json'
-        publishLocation: 'pipeline'
+        azureSubscription: 'bicep_deploy_SC'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az account set --subscription "${{ parameters.subscriptionId }}"
+          az deployment group validate --resource-group "${{ parameters.resourceGroupName }}" --template-file main.bicep --parameters "@main.parameters.json"
 
   - job: CreateResourceGroup
     displayName: 'Create Resource Group'
@@ -130,20 +134,7 @@ stages:
     dependsOn: CreateResourceGroup
     condition: eq(${{ parameters.enableBackup }}, 'true')
     steps:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifactName: 'main.parameters.json'
-        targetPath: '$(System.DefaultWorkingDirectory)'
-
-    - task: AzureCLI@2
-      displayName: 'Validate deployment (pre-check)'
-      inputs:
-        azureSubscription: 'bicep_deploy_SC'
-        scriptType: 'ps'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          az account set --subscription "${{ parameters.subscriptionId }}"
-          az deployment group validate --resource-group "${{ parameters.resourceGroupName }}" --template-file main.bicep --parameters "@main.parameters.json"
+    # parameters file is generated and validated in the PrepareParameters job
     - task: AzurePowerShell@5
       inputs:
         azureSubscription: 'bicep_deploy_SC'
