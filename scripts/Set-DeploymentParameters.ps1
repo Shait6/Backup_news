@@ -44,7 +44,7 @@ $parameters = @{
 }
 
 # Normalize schedule run times to HH:mm:ss (provider commonly expects seconds precision)
-function Normalize-TimeString($t) {
+function ConvertTo-TimeString($t) {
     if ($null -eq $t) { return $t }
     # If already HH:mm:ss
     if ($t -match '^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$') { return $t }
@@ -62,20 +62,17 @@ function Normalize-TimeString($t) {
 
 $normalizedTimes = @()
 foreach ($entry in $parameters['backupScheduleRunTimes']) {
-    $normalizedTimes += Normalize-TimeString $entry
+    $normalizedTimes += ConvertTo-TimeString $entry
 }
 $parameters['backupScheduleRunTimes'] = $normalizedTimes
 
 # Set retention days based on backup frequency
 $backupFrequency = $env:BACKUP_FREQUENCY
 if ($backupFrequency -eq 'Daily') {
-    # keep backward-compatible key
-    $parameters["backupRetentionDays"] = $DailyRetentionDays
     # ensure explicit keys exist for templates expecting daily/weekly
     $parameters["dailyRetentionDays"] = $DailyRetentionDays
     $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
 } elseif ($backupFrequency -eq 'Weekly') {
-    $parameters["backupRetentionDays"] = $WeeklyRetentionDays
     $parameters["dailyRetentionDays"] = $DailyRetentionDays
     $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
 } elseif ($backupFrequency -eq 'Both') {
