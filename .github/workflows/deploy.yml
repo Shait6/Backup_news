@@ -158,14 +158,14 @@ jobs:
       # 💾 Deploy backup infrastructure
       - name: Deploy Backup Infrastructure
         if: ${{ env.ENABLE_BACKUP == 'true' }}
-        shell: pwsh
+        shell: bash
         run: |
           # Azure CLI login is already handled by azure/login action
           # Use the generated parameters file so arrays and retention values are passed correctly.
-          az deployment group create `
-            --name main `
-            --resource-group "$env:RESOURCE_GROUP_NAME" `
-            --template-file "main.bicep" `
+          az deployment group create \
+            --name main \
+            --resource-group "$RESOURCE_GROUP_NAME" \
+            --template-file "main.bicep" \
             --parameters @main.parameters.json
       - name: Collect failed deployment operations (on failure)
         if: ${{ failure() }}
