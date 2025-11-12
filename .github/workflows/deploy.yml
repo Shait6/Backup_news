@@ -294,6 +294,32 @@ jobs:
           name: autoEnablePolicy.resolved.json
           path: modules/autoEnablePolicy.resolved.json
 
+      # ▶️ Create role assignment for the UAI (separate step to avoid AAD propagation delays)
+      - name: Deploy role assignment for UAI (wait for principal)
+        if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
+        shell: pwsh
+        run: |
+          az account set --subscription "$env:SUBSCRIPTION_ID"
+
+          # Read outputs from the group deployment
+          $identityPrincipal = az deployment group show --name main --resource-group "$env:RESOURCE_GROUP_NAME" --query properties.outputs.userAssignedIdentityPrincipalId.value -o tsv
+          $identityId = az deployment group show --name main --resource-group "$env:RESOURCE_GROUP_NAME" --query properties.outputs.userAssignedIdentityId.value -o tsv
+          if (-not $identityPrincipal -or -not $identityId) {
+            Write-Error "Failed to resolve user-assigned identity outputs from group deployment. identityPrincipal='$identityPrincipal' identityId='$identityId'"
+            exit 1
+          }
+
+          Write-Host "Found identity principal: $identityPrincipal"
+
+          # Call helper script to wait for AAD replication (keeps workflow YAML small)
+          pwsh ./scripts/Wait-For-AadPrincipal.ps1 -PrincipalId $identityPrincipal -TimeoutSeconds 180
+
+          Write-Host "AAD replication complete; creating role assignment via Bicep"
+          $roleGuid = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
+          $roleId = "/subscriptions/$env:SUBSCRIPTION_ID/providers/Microsoft.Authorization/roleDefinitions/$roleGuid"
+
+          az deployment group create --name assign-role --resource-group "$env:RESOURCE_GROUP_NAME" --template-file deploy-role-assignment.bicep --parameters principalId=$identityPrincipal roleDefinitionId=$roleId
+
       # 🧩 Deploy subscription-scoped policy assignment using the user-assigned identity created in the resource group deployment
       - name: Deploy subscription-scoped policy assignment using UAI
         if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}

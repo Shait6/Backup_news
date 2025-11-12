@@ -105,6 +105,30 @@ stages:
           -VaultSkuName "${{ parameters.vaultSkuName }}" \
           -VaultSkuTier "${{ parameters.vaultSkuTier }}"
         azurePowerShellVersion: 'LatestVersion'
+
+    - task: AzureCLI@2
+      displayName: 'Create role assignment for UAI (wait until principal exists)'
+      inputs:
+        azureSubscription: 'bicep_deploy_SC'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          set -euo pipefail
+          rgName="${{ parameters.resourceGroupName }}"
+          # read outputs from group deployment
+          identityPrincipal=$(az deployment group show --name main --resource-group "$rgName" --query properties.outputs.userAssignedIdentityPrincipalId.value -o tsv || true)
+          identityId=$(az deployment group show --name main --resource-group "$rgName" --query properties.outputs.userAssignedIdentityId.value -o tsv || true)
+          if [ -z "$identityPrincipal" ] || [ -z "$identityId" ]; then
+            echo "Failed to resolve identity outputs from group deployment"
+            exit 1
+          fi
+
+          echo "Waiting for AAD replication for principal $identityPrincipal (helper script)"
+          pwsh ./scripts/Wait-For-AadPrincipal.ps1 -PrincipalId $identityPrincipal -TimeoutSeconds 180
+
+          roleGuid='b24988ac-6180-42a0-ab88-20f7382dd24c'
+          roleId="/subscriptions/${{ parameters.subscriptionId }}/providers/Microsoft.Authorization/roleDefinitions/$roleGuid"
+          az deployment group create --name assign-role --resource-group "$rgName" --template-file deploy-role-assignment.bicep --parameters principalId="$identityPrincipal" roleDefinitionId="$roleId"
     - task: AzureCLI@2
       displayName: 'Validate deployment (pre-check)'
       inputs:

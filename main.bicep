@@ -72,18 +72,6 @@ module uaiModule './modules/userAssignedIdentity.bicep' = {
   dependsOn: [vaultModule]
 }
 
-// Grant the identity a role on the vault resource group so it can operate the vault during remediation.
-// Default role used is Contributor; a custom role may be provided instead via roleDefinitionId param.
-param remediationRoleDefinitionId string = subscriptionResourceId('Microsoft.Authorization/roleDefinitions','b24988ac-6180-42a0-ab88-20f7382dd24c')
-
-module roleAssign './modules/roleAssignment.bicep' = {
-  name: 'roleAssignmentModule'
-  params: {
-    principalId: uaiModule.outputs.principalId
-    roleDefinitionId: remediationRoleDefinitionId
-  }
-}
-
 // Export module outputs
 output vaultId string = vaultModule.outputs.vaultId
 output backupPolicyIds array = policyModule.outputs.backupPolicyIds

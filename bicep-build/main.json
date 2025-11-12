@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "16933589175303904597"
+      "templateHash": "13086765913679335292"
     }
   },
   "parameters": {
@@ -81,10 +81,6 @@
       "metadata": {
         "description": "Recovery Services Vault SKU tier (e.g. Standard)"
       }
-    },
-    "remediationRoleDefinitionId": {
-      "type": "string",
-      "defaultValue": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]"
     }
   },
   "resources": [
@@ -426,74 +422,6 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'recoveryVaultModule')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "roleAssignmentModule",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "principalId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'userAssignedIdentityModule'), '2025-04-01').outputs.principalId.value]"
-          },
-          "roleDefinitionId": {
-            "value": "[parameters('remediationRoleDefinitionId')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.38.33.27573",
-              "templateHash": "13455880165287397241"
-            }
-          },
-          "parameters": {
-            "principalId": {
-              "type": "string",
-              "metadata": {
-                "description": "Principal object id (GUID) to give the role to"
-              }
-            },
-            "roleDefinitionId": {
-              "type": "string",
-              "metadata": {
-                "description": "Role definition id or resource id of the role definition. If only a GUID is provided it will be converted to a subscription-scoped roleDefinition resource id."
-              }
-            }
-          },
-          "variables": {
-            "roleDefIdResolved": "[if(contains(parameters('roleDefinitionId'), '/'), parameters('roleDefinitionId'), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId')))]",
-            "roleAssignmentName": "[guid(resourceGroup().id, parameters('principalId'), variables('roleDefIdResolved'))]"
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2020-04-01-preview",
-              "name": "[variables('roleAssignmentName')]",
-              "properties": {
-                "roleDefinitionId": "[variables('roleDefIdResolved')]",
-                "principalId": "[parameters('principalId')]"
-              }
-            }
-          ],
-          "outputs": {
-            "roleAssignmentId": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.Authorization/roleAssignments', variables('roleAssignmentName'))]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'userAssignedIdentityModule')]"
       ]
     }
   ],
