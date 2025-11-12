@@ -270,3 +270,5 @@ stages:
 
           echo "Creating subscription deployment to create policy assignment using the UAI"
           az deployment sub create --name assign-policy --template-file deploy-policy-subscription.bicep --parameters assignmentName='enable-vm-backup-assignment' policyDefinitionName=$policyName userAssignedIdentityId=$identityId
+          # subscription scope deployments require a location
+          az deployment sub create --location "${{ parameters.location }}" --name assign-policy --template-file deploy-policy-subscription.bicep --parameters assignmentName='enable-vm-backup-assignment' policyDefinitionName=$policyName userAssignedIdentityId=$identityId

@@ -364,4 +364,5 @@ jobs:
           az deployment sub create \
             --name assign-policy \
             --template-file deploy-policy-subscription.bicep \
+            --location "$LOCATION" \
             --parameters assignmentName='enable-vm-backup-assignment' policyDefinitionName=$policyName userAssignedIdentityId="$identityId"
