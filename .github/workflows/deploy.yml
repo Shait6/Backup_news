@@ -148,6 +148,22 @@ jobs:
           name: compiled-template
           path: bicep-build/main.json
 
+      # 🔍 Show deployment parameters (first 2KB) for debugging
+      - name: Show deployment parameters
+        if: ${{ env.ENABLE_BACKUP == 'true' }}
+        shell: pwsh
+        run: |
+          if (Test-Path -Path 'main.parameters.json') {
+            $s = Get-Content -Path 'main.parameters.json' -Raw
+            $max = 2000
+            if ($s.Length -gt $max) { $out = $s.Substring(0, $max) + "`n...(truncated)" } else { $out = $s }
+            Write-Host "--- main.parameters.json (preview) ---"
+            Write-Host $out
+            Write-Host "--- end preview ---"
+          } else {
+            Write-Host "main.parameters.json not found"
+          }
+
       # 🏗️ Create resource group
       - name: Create Resource Group
         shell: pwsh

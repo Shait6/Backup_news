@@ -51,19 +51,27 @@ foreach ($entry in $parameters['backupScheduleRunTimes']) {
         continue
     }
 
-    if ($entry -match '^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$') {
+    # Normalize all times to HH:mm (provider commonly expects time-of-day in hours:minutes)
+    if ($entry -match '^[0-9]{1,2}:[0-9]{2}$') {
         $normalizedTimes += $entry
         continue
     }
 
-    if ($entry -match '^[0-9]{1,2}:[0-9]{2}$') {
-        $normalizedTimes += "$entry`:00"
-        continue
+    if ($entry -match '^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$') {
+        # Convert HH:mm:ss -> HH:mm
+        try {
+            $dt = [DateTime]::Parse($entry)
+            $normalizedTimes += $dt.ToString('HH:mm')
+            continue
+        } catch {
+            $normalizedTimes += $entry
+            continue
+        }
     }
 
     try {
         $dt = [DateTime]::Parse($entry)
-        $normalizedTimes += $dt.ToString('HH:mm:ss')
+        $normalizedTimes += $dt.ToString('HH:mm')
     } catch {
         # If parsing fails, keep original and let provider validate
         $normalizedTimes += $entry
