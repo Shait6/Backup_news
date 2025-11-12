@@ -163,6 +163,7 @@ jobs:
           # Azure CLI login is already handled by azure/login action
           # Use the generated parameters file so arrays and retention values are passed correctly.
           az deployment group create `
+            --name main `
             --resource-group "$env:RESOURCE_GROUP_NAME" `
             --template-file "main.bicep" `
             --parameters @main.parameters.json
