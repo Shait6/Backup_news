@@ -62,10 +62,10 @@ jobs:
       MANAGEMENT_GROUP_ID: ''
       VM_TAG_NAME: 'backup'
       VM_TAG_VALUE: 'true'
-      VAULT_NAME: 'rsv-backup-default'
+      VAULT_NAME: 'rsv-backup-test'
       VAULT_SKU_NAME: 'RS0'
       VAULT_SKU_TIER: 'Standard'
-      LOCATION: 'westeurope'
+      LOCATION: 'northeurope'
       # Toggle to enable Az PowerShell context setup when required by downstream steps
       NEED_AZ_POWERSHELL: 'false'
 
