@@ -1,39 +1,21 @@
 # Main parameters script for VM Backup deployment
 param(
-    [Parameter(Mandatory=$true)]
     [string]$Location,
-
-    [Parameter(Mandatory=$false)]
     [string]$SubscriptionId,
-
-    [Parameter(Mandatory=$false)]
-    [string]$VaultName = "rsv-backup-${env:resourceSuffix}",
-
-    [Parameter(Mandatory=$false)]
+    [string]$VaultName = "rsv-backup-$($env:resourceSuffix)",
     [string]$BackupPolicyName = "DefaultPolicy",
-
-    [Parameter(Mandatory=$false)]
     [int]$DailyRetentionDays = 14,
-
-    [Parameter(Mandatory=$false)]
     [int]$WeeklyRetentionDays = 30,
-
-    [Parameter(Mandatory=$false)]
-    [array]$WeeklyBackupDaysOfWeek = @("Sunday", "Wednesday"),
-
-    [Parameter(Mandatory=$false)]
+    [array]$WeeklyBackupDaysOfWeek = @("Sunday","Wednesday"),
     [array]$BackupScheduleRunTimes = @("01:00"),
-    
-    [Parameter(Mandatory=$false)]
+    [string]$BackupFrequency = 'Daily',
+    [switch]$IncludeLocation,
     [string]$VaultSkuName = 'RS0',
-
-    [Parameter(Mandatory=$false)]
     [string]$VaultSkuTier = 'Standard'
 )
 
 # Create parameter hashtable
 $parameters = @{
-    location = $Location
     vaultName = $VaultName
     backupPolicyName = $BackupPolicyName
     weeklyBackupDaysOfWeek = $WeeklyBackupDaysOfWeek
@@ -43,56 +25,79 @@ $parameters = @{
     vaultSkuTier = $VaultSkuTier
 }
 
-# Normalize schedule run times to HH:mm:ss (provider commonly expects seconds precision)
+# Optionally include location in the parameters file. Many workflows prefer to pass location via CLI or leave it out.
+if ($IncludeLocation) {
+    $parameters['location'] = $Location
+}
+
+# Normalize schedule run times to HH:mm:ss (provider commonly accepts time-of-day with seconds)
 $normalizedTimes = @()
 foreach ($entry in $parameters['backupScheduleRunTimes']) {
     if ($null -eq $entry) {
+        Write-Host "Warning: null entry found in backupScheduleRunTimes; passing through."
         $normalizedTimes += $entry
         continue
     }
 
-    # Normalize all times to HH:mm (provider commonly expects time-of-day in hours:minutes)
+    # Try parse as DateTime and format to HH:mm:ss
+    try {
+        $dt = [DateTime]::Parse($entry)
+        $normalizedTimes += $dt.ToString('HH:mm:ss')
+        continue
+    } catch {
+        # Not a parseable DateTime string
+    }
+
+    # If it already matches HH:mm or HH:mm:ss, normalize to HH:mm:ss
     if ($entry -match '^[0-9]{1,2}:[0-9]{2}$') {
-        $normalizedTimes += $entry
-        continue
-    }
-
-    if ($entry -match '^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$') {
-        # Convert HH:mm:ss -> HH:mm
-        try {
-            $dt = [DateTime]::Parse($entry)
-            $normalizedTimes += $dt.ToString('HH:mm')
-            continue
-        } catch {
-            $normalizedTimes += $entry
+        $parts = $entry.Split(':')
+        $hh = [int]$parts[0]
+        $mm = [int]$parts[1]
+        if ($hh -ge 0 -and $hh -lt 24 -and $mm -ge 0 -and $mm -lt 60) {
+            $normalizedTimes += ('{0:00}:{1:00}:00' -f $hh, $mm)
             continue
         }
     }
 
-    try {
-        $dt = [DateTime]::Parse($entry)
-        $normalizedTimes += $dt.ToString('HH:mm')
-    } catch {
-        # If parsing fails, keep original and let provider validate
-        $normalizedTimes += $entry
+    if ($entry -match '^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$') {
+        # Validate ranges and keep as-is
+        $parts = $entry.Split(':')
+        $hh = [int]$parts[0]
+        $mm = [int]$parts[1]
+        $ss = [int]$parts[2]
+        if ($hh -ge 0 -and $hh -lt 24 -and $mm -ge 0 -and $mm -lt 60 -and $ss -ge 0 -and $ss -lt 60) {
+            $normalizedTimes += ('{0:00}:{1:00}:{2:00}' -f $hh, $mm, $ss)
+            continue
+        }
     }
+
+    Write-Host "Warning: could not parse backupScheduleRunTimes entry '$entry' - passing through raw value and provider will validate."
+    $normalizedTimes += $entry
 }
 
 $parameters['backupScheduleRunTimes'] = $normalizedTimes
 
-# Set retention days based on backup frequency
-$backupFrequency = $env:BACKUP_FREQUENCY
-if ($backupFrequency -eq 'Daily') {
-    # ensure explicit keys exist for templates expecting daily/weekly
-    $parameters["dailyRetentionDays"] = $DailyRetentionDays
-    $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
-} elseif ($backupFrequency -eq 'Weekly') {
-    $parameters["dailyRetentionDays"] = $DailyRetentionDays
-    $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
-} elseif ($backupFrequency -eq 'Both') {
-    $parameters["dailyRetentionDays"] = $DailyRetentionDays
-    $parameters["weeklyRetentionDays"] = $WeeklyRetentionDays
+# Normalize weeklyBackupDaysOfWeek values to Title case and validate known day names
+$validDays = @('Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday')
+$normalizedDays = @()
+foreach ($d in $parameters['weeklyBackupDaysOfWeek']) {
+    if ($null -eq $d) { continue }
+    $nd = ($d.ToString()).Trim()
+    # Title case (first letter uppercase, rest lowercase)
+    $nd = ($nd.Substring(0,1).ToUpper() + $nd.Substring(1).ToLower())
+    if ($validDays -contains $nd) {
+        $normalizedDays += $nd
+    } else {
+        Write-Host "Warning: unknown day name '$d' in weeklyBackupDaysOfWeek; will pass through raw value."
+        $normalizedDays += $d
+    }
 }
+$parameters['weeklyBackupDaysOfWeek'] = $normalizedDays
+
+# Always emit backupFrequency and retention days so ARM template receives explicit values
+$parameters['backupFrequency'] = $BackupFrequency
+$parameters['dailyRetentionDays'] = $DailyRetentionDays
+$parameters['weeklyRetentionDays'] = $WeeklyRetentionDays
 
 # Convert to JSON
 $parametersJson = @{

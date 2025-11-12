@@ -6,6 +6,10 @@ on:
       subscriptionId:
         description: 'Azure Subscription ID'
         required: true
+      location:
+        description: 'Deployment location (region) for RG and Vault'
+        required: false
+        default: 'westeurope'
       # location removed from workflow_dispatch inputs
       enableBackup:
         description: 'Enable VM Backup'
@@ -64,7 +68,7 @@ jobs:
       VAULT_NAME: 'rsv-backup-default'
       VAULT_SKU_NAME: 'RS0'
       VAULT_SKU_TIER: 'Standard'
-      LOCATION: 'westeurope'
+      LOCATION: ${{ github.event.inputs.location }}
       # Toggle to enable Az PowerShell context setup when required by downstream steps
       NEED_AZ_POWERSHELL: 'false'
 
@@ -118,7 +122,8 @@ jobs:
             -DailyRetentionDays $env:DAILY_RETENTION_DAYS `
             -WeeklyRetentionDays $env:WEEKLY_RETENTION_DAYS `
             -VaultSkuName "$env:VAULT_SKU_NAME" `
-            -VaultSkuTier "$env:VAULT_SKU_TIER"
+            -VaultSkuTier "$env:VAULT_SKU_TIER" `
+            -IncludeLocation
 
       - name: Upload deployment parameters (artifact)
         if: always()
@@ -170,6 +175,25 @@ jobs:
         run: |
           # Azure CLI login is already handled by azure/login action
           az group create --name "$env:RESOURCE_GROUP_NAME" --location "$env:LOCATION"
+
+      # ✅ Validate deployment (pre-check) - PowerShell-safe parameters quoting
+      - name: Validate deployment (pre-check)
+        if: ${{ env.ENABLE_BACKUP == 'true' }}
+        shell: pwsh
+        run: |
+          # Ensure we're targeting the right subscription for validation
+          az account set --subscription "$env:SUBSCRIPTION_ID"
+
+          # Run validate with PowerShell-safe parameters file quoting
+          $out = az deployment group validate --resource-group "$env:RESOURCE_GROUP_NAME" --template-file main.bicep --parameters "@main.parameters.json" 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Deployment validation FAILED. Output:" 
+            Write-Host $out
+            # Re-run with json output to capture provider details for artifacts/logs
+            az deployment group validate --resource-group "$env:RESOURCE_GROUP_NAME" --template-file main.bicep --parameters "@main.parameters.json" -o json
+            exit 1
+          }
+          Write-Host "Deployment validation succeeded."
 
       # 💾 Deploy backup infrastructure
       - name: Deploy Backup Infrastructure

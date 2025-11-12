@@ -40,7 +40,6 @@ resource backupPolicyDaily 'Microsoft.RecoveryServices/vaults/backupPolicies@202
       scheduleRunFrequency: 'Daily'
       // Do NOT set scheduleRunDays to null. Use an array (empty array is acceptable) or omit the property.
       scheduleRunTimes: backupScheduleRunTimes
-      scheduleRunDays: [] // intentionally empty for daily schedule
     }
     retentionPolicy: {
       retentionPolicyType: 'LongTermRetentionPolicy'
