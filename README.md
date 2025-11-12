@@ -81,8 +81,8 @@ az deployment group validate --resource-group <RG_NAME> --template-file main.bic
 If validation fails, copy the CLI output (the provider `statusMessage` JSON) and paste it into an issue or here — that message pinpoints the exact property Azure rejects (schedule time, days, retention schema, etc.).
 
 ## Running in CI
-- GitHub Actions: dispatch `deploy.yml` from the Actions UI or trigger via workflow_dispatch. Supply `subscriptionId`, `location`, `resourceGroupName` and other inputs shown in the workflow. The workflow will produce artifacts (compiled Bicep template and resolved policy JSON) and run a validate step before deployment.
-- Azure DevOps: run the `azure-pipelines.yml` pipeline with equivalent parameters. The pipeline publishes `main.parameters.json` from the PrepareParameters job and downloads it in the Deploy job to run `az deployment group validate` before the actual deployment.
+- GitHub Actions: dispatch `deploy.yml` from the Actions UI or trigger via workflow_dispatch. Supply `subscriptionId`, `location`, `resourceGroupName` and other inputs shown in the workflow. The workflow runs a `bicep build` pre-check and then performs the deployment.
+- Azure DevOps: run the `azure-pipelines.yml` pipeline with equivalent parameters. The pipeline runs parameter generation and a group deployment; it does not publish build artifacts by default.
 
 ## Audit pipeline
 The audit policy deployment is separated into `azure-pipelines-audit.yml` so you can run audits at management-group scope without affecting the main infra pipeline. Use it to detect unprotected VMs across your management group and optionally run remediation separately.

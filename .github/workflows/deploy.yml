@@ -122,12 +122,7 @@ jobs:
             -VaultSkuTier "$env:VAULT_SKU_TIER" `
             -IncludeLocation
 
-      - name: Upload deployment parameters (artifact)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: main.parameters.json
-          path: main.parameters.json
+      # (artifact upload removed per user request)
 
       # 🧰 Bicep build pre-check: compile templates to catch schema/format errors early
       - name: Bicep build (pre-check)
@@ -143,12 +138,7 @@ jobs:
           # Build the main Bicep file (this will expand modules and validate syntax)
           az bicep build --file main.bicep --outdir bicep-build
 
-      - name: Upload compiled template (artifact)
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: compiled-template
-          path: bicep-build/main.json
+      # (compiled template upload removed per user request)
 
       # 🔍 Show deployment parameters (first 2KB) for debugging
       - name: Show deployment parameters
@@ -204,6 +194,7 @@ jobs:
             --resource-group "$RESOURCE_GROUP_NAME" \
             --template-file "main.bicep" \
             --parameters @main.parameters.json
+      # (ops capture removed per user request)
       # (Removed) Collect-deployment-operations and artifact upload steps per user request
       # NOTE: 'Collect failed deployment operations' step removed per request.
 
@@ -323,12 +314,7 @@ jobs:
             Write-Host "Vault resource group '$vaultRg' does not exist; skipping role assignment. Please ensure the vault resource group exists or create the role assignment manually later."
           }
 
-      - name: Upload resolved policy JSON (artifact)
-        if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: autoEnablePolicy.resolved.json
-          path: modules/autoEnablePolicy.resolved.json
+      # (policy JSON upload removed per user request)
 
       # ▶️ Create role assignment for the UAI (separate step to avoid AAD propagation delays)
       - name: Deploy role assignment for UAI (wait for principal)
