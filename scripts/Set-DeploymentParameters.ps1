@@ -37,11 +37,34 @@ $parameters = @{
     vaultName = $VaultName
     backupPolicyName = $BackupPolicyName
     weeklyBackupDaysOfWeek = $WeeklyBackupDaysOfWeek
-        # Use time-of-day strings (HH:mm) rather than full ISO datetimes to match Recovery Services API expectations
+        # Use time-of-day strings (HH:mm or HH:mm:ss) rather than full ISO datetimes to match Recovery Services API expectations
         backupScheduleRunTimes = $BackupScheduleRunTimes
     vaultSkuName = $VaultSkuName
     vaultSkuTier = $VaultSkuTier
 }
+
+# Normalize schedule run times to HH:mm:ss (provider commonly expects seconds precision)
+function Normalize-TimeString($t) {
+    if ($null -eq $t) { return $t }
+    # If already HH:mm:ss
+    if ($t -match '^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$') { return $t }
+    # If HH:mm, append :00
+    if ($t -match '^[0-9]{1,2}:[0-9]{2}$') { return "$t`:00" }
+    # Try parsing ISO/other datetime and extract time component
+    try {
+        $dt = [DateTime]::Parse($t)
+        return $dt.ToString('HH:mm:ss')
+    } catch {
+        # If parsing fails, return original value (let provider validate)
+        return $t
+    }
+}
+
+$normalizedTimes = @()
+foreach ($entry in $parameters['backupScheduleRunTimes']) {
+    $normalizedTimes += Normalize-TimeString $entry
+}
+$parameters['backupScheduleRunTimes'] = $normalizedTimes
 
 # Set retention days based on backup frequency
 $backupFrequency = $env:BACKUP_FREQUENCY

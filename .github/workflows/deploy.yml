@@ -65,6 +65,8 @@ jobs:
       VAULT_SKU_NAME: 'RS0'
       VAULT_SKU_TIER: 'Standard'
       LOCATION: 'westeurope'
+      # Toggle to enable Az PowerShell context setup when required by downstream steps
+      NEED_AZ_POWERSHELL: 'false'
 
       # Map workflow inputs
       SUBSCRIPTION_ID: ${{ github.event.inputs.subscriptionId }}
@@ -87,17 +89,17 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.serivcon }}
-          enableAzPSSession: true
 
-      # 🧩 Initialize Azure PowerShell session (context already set by azure/login)
-      - name: Initialize Azure PowerShell Session
+      # 🧩 Initialize Azure PowerShell session only when needed (imports Az modules and saves context)
+      - name: Prepare Az PowerShell session (only if needed)
+        if: ${{ env.NEED_AZ_POWERSHELL == 'true' }}
         shell: pwsh
         env:
           AZUREPS_HOST_ENVIRONMENT: AzurePipelines
         run: |
           Install-Module Az.Accounts -Force -AllowClobber -Scope CurrentUser
           Install-Module Az.Resources -Force -AllowClobber -Scope CurrentUser
-          # Context is already set by azure/login with enableAzPSSession: true
+          # Save Az context for subsequent PowerShell steps that rely on it
           Save-AzContext -Path "$env:USERPROFILE\azurecontext.json" -Force
 
       # 🧱 Prepare parameters
@@ -159,16 +161,11 @@ jobs:
         shell: pwsh
         run: |
           # Azure CLI login is already handled by azure/login action
+          # Use the generated parameters file so arrays and retention values are passed correctly.
           az deployment group create `
             --resource-group "$env:RESOURCE_GROUP_NAME" `
             --template-file "main.bicep" `
-            --parameters `
-              location="$env:LOCATION" `
-              vaultName="$env:VAULT_NAME" `
-              backupPolicyName="$env:BACKUP_POLICY_NAME" `
-              backupFrequency="$env:BACKUP_FREQUENCY" `
-              vaultSkuName="$env:VAULT_SKU_NAME" `
-              vaultSkuTier="$env:VAULT_SKU_TIER"
+            --parameters @main.parameters.json
       - name: Collect failed deployment operations (on failure)
         if: ${{ failure() }}
         shell: pwsh
