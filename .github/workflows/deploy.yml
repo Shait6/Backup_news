@@ -204,21 +204,7 @@ jobs:
             --resource-group "$RESOURCE_GROUP_NAME" \
             --template-file "main.bicep" \
             --parameters @main.parameters.json
-      - name: Collect deployment operations on failure
-        if: ${{ failure() }}
-        shell: pwsh
-        run: |
-          pwsh ./scripts/Collect-DeploymentOperations.ps1 -SubscriptionId $env:SUBSCRIPTION_ID -ResourceGroupName $env:RESOURCE_GROUP_NAME -DeploymentName main
-          # Upload the ops file for investigation
-          if (Test-Path -Path 'ops.json') { Write-Host 'ops.json created' } else { Write-Host 'ops.json not found' }
-      - name: Upload ops.json and op details (if present)
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployment-operations
-          path: |
-            ops.json
-            op-*.json
+      # (Removed) Collect-deployment-operations and artifact upload steps per user request
       # NOTE: 'Collect failed deployment operations' step removed per request.
 
       # 🛡️ Deploy auto-enable policy (Option B: preprocess JSON and create policy directly)
