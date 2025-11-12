@@ -44,26 +44,32 @@ $parameters = @{
 }
 
 # Normalize schedule run times to HH:mm:ss (provider commonly expects seconds precision)
-function ConvertTo-TimeString($t) {
-    if ($null -eq $t) { return $t }
-    # If already HH:mm:ss
-    if ($t -match '^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$') { return $t }
-    # If HH:mm, append :00
-    if ($t -match '^[0-9]{1,2}:[0-9]{2}$') { return "$t`:00" }
-    # Try parsing ISO/other datetime and extract time component
+$normalizedTimes = @()
+foreach ($entry in $parameters['backupScheduleRunTimes']) {
+    if ($null -eq $entry) {
+        $normalizedTimes += $entry
+        continue
+    }
+
+    if ($entry -match '^[0-9]{1,2}:[0-9]{2}:[0-9]{2}$') {
+        $normalizedTimes += $entry
+        continue
+    }
+
+    if ($entry -match '^[0-9]{1,2}:[0-9]{2}$') {
+        $normalizedTimes += "$entry`:00"
+        continue
+    }
+
     try {
-        $dt = [DateTime]::Parse($t)
-        return $dt.ToString('HH:mm:ss')
+        $dt = [DateTime]::Parse($entry)
+        $normalizedTimes += $dt.ToString('HH:mm:ss')
     } catch {
-        # If parsing fails, return original value (let provider validate)
-        return $t
+        # If parsing fails, keep original and let provider validate
+        $normalizedTimes += $entry
     }
 }
 
-$normalizedTimes = @()
-foreach ($entry in $parameters['backupScheduleRunTimes']) {
-    $normalizedTimes += ConvertTo-TimeString $entry
-}
 $parameters['backupScheduleRunTimes'] = $normalizedTimes
 
 # Set retention days based on backup frequency
