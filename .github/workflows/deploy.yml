@@ -6,10 +6,7 @@ on:
       subscriptionId:
         description: 'Azure Subscription ID'
         required: true
-      location:
-        description: 'Deployment location (region) for RG and Vault'
-        required: false
-        default: 'westeurope'
+      # location removed from workflow_dispatch inputs (use env default below)
       # location removed from workflow_dispatch inputs
       enableBackup:
         description: 'Enable VM Backup'
@@ -68,7 +65,7 @@ jobs:
       VAULT_NAME: 'rsv-backup-default'
       VAULT_SKU_NAME: 'RS0'
       VAULT_SKU_TIER: 'Standard'
-      LOCATION: ${{ github.event.inputs.location }}
+      LOCATION: 'westeurope'
       # Toggle to enable Az PowerShell context setup when required by downstream steps
       NEED_AZ_POWERSHELL: 'false'
 
