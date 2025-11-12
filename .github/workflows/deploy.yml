@@ -222,14 +222,21 @@ jobs:
           # Read and replace placeholders in the policy JSON
           $raw = Get-Content -Path 'modules/autoEnablePolicy.rule.json' -Raw
 
+          # Trim environment values to avoid accidental trailing characters and use simple replacements
+          $vaultName = ($env:VAULT_NAME ?? '').Trim()
+          $vaultRg = ($env:VAULT_RESOURCE_GROUP ?? '').Trim()
+          $backupPolicyName = ($env:BACKUP_POLICY_NAME ?? '').Trim()
+          $tagName = ($env:VM_TAG_NAME ?? '').Trim()
+          $tagValue = ($env:VM_TAG_VALUE ?? '').Trim()
+
           # Use simple string replacement to avoid inserting regex-style escapes into the roleDefinitionId
           $resolved = $raw
           $resolved = $resolved.Replace('__ROLEDEFID__', $roleId)
-          $resolved = $resolved.Replace('__VAULT_NAME__', $env:VAULT_NAME)
-          $resolved = $resolved.Replace('__VAULT_RG__', $env:VAULT_RESOURCE_GROUP)
-          $resolved = $resolved.Replace('__BACKUP_POLICY__', $env:BACKUP_POLICY_NAME)
-          $resolved = $resolved.Replace('__TAGNAME__', $env:VM_TAG_NAME)
-          $resolved = $resolved.Replace('__TAGVALUE__', $env:VM_TAG_VALUE)
+          $resolved = $resolved.Replace('__VAULT_NAME__', $vaultName)
+          $resolved = $resolved.Replace('__VAULT_RG__', $vaultRg)
+          $resolved = $resolved.Replace('__BACKUP_POLICY__', $backupPolicyName)
+          $resolved = $resolved.Replace('__TAGNAME__', $tagName)
+          $resolved = $resolved.Replace('__TAGVALUE__', $tagValue)
 
           $outPath = 'modules/autoEnablePolicy.resolved.json'
           $resolved | Out-File -FilePath $outPath -Encoding utf8
@@ -253,12 +260,33 @@ jobs:
           $assignExists = az policy assignment show --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --query name -o tsv 2>$null
 
           # Create or update policy assignment WITH a system-assigned managed identity (required for DeployIfNotExists with deployment).
+          # Be robust: capture errors from az CLI (possible internal CLI bug) and fall back to create-then-update flow.
+          Write-Host "Policy assignment target subscription: $env:SUBSCRIPTION_ID"
+          Write-Host "Policy id: $policyId"
+          Write-Host "Using vaultName='$vaultName' vaultRg='$vaultRg' backupPolicyName='$backupPolicyName'"
+
           if ($assignExists) {
             Write-Host "Updating existing policy assignment '$assignmentName' to ensure it has a system-assigned identity..."
-            az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --identity '{"type":"SystemAssigned"}' --location "$env:LOCATION"
+            $out = az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --identity '{"type":"SystemAssigned"}' --location "$env:LOCATION" 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Update failed; output: $out"
+              Write-Host "Attempting fallback: update assignment without identity then add identity via update"
+              # Try to ensure assignment exists; if it doesn't exist now, try recreate
+              $out2 = az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --location "$env:LOCATION" 2>&1
+              if ($LASTEXITCODE -ne 0) { Write-Host "Fallback create also failed: $out2"; Write-Host $out2; exit 1 }
+              # Now add identity
+              az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --identity '{"type":"SystemAssigned"}' --location "$env:LOCATION"
+            }
           } else {
             Write-Host "Creating policy assignment '$assignmentName' with system-assigned identity..."
-            az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --identity '{"type":"SystemAssigned"}' --location "$env:LOCATION"
+            $out = az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --identity '{"type":"SystemAssigned"}' --location "$env:LOCATION" 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Primary create failed; output: $out"
+              Write-Host "Attempting fallback: create without identity then add identity via update"
+              $out2 = az policy assignment create --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --policy "$policyId" --display-name 'Enable VM backup for tagged VMs' --description 'Assign DeployIfNotExists policy to enable VM backup for VMs with the tag.' --location "$env:LOCATION" 2>&1
+              if ($LASTEXITCODE -ne 0) { Write-Host "Fallback create also failed: $out2"; Write-Host $out2; exit 1 }
+              az policy assignment update --name $assignmentName --scope "/subscriptions/$env:SUBSCRIPTION_ID" --identity '{"type":"SystemAssigned"}' --location "$env:LOCATION"
+            }
           }
 
           # Retrieve the principalId for the assignment identity. Retry until identity is provisioned.
@@ -278,14 +306,21 @@ jobs:
           Write-Host "Managed identity principalId: $principalId"
 
           # Grant Contributor role on the vault resource group so the identity can create protected items in the vault.
-          $rgScope = "/subscriptions/$env:SUBSCRIPTION_ID/resourceGroups/$env:VAULT_RESOURCE_GROUP"
+          $rgScope = "/subscriptions/$env:SUBSCRIPTION_ID/resourceGroups/$vaultRg"
           Write-Host "Assigning Contributor role to the policy assignment identity on scope: $rgScope"
-          # Create role assignment; allow failure if the assignment already exists
-          try {
-            az role assignment create --assignee-object-id $principalId --role "Contributor" --scope $rgScope | Out-Null
-            Write-Host "Role assignment created successfully."
-          } catch {
-            Write-Host "Role assignment may already exist or failed to create: $($_.Exception.Message)"
+          # Only attempt to create the role assignment if the resource group exists
+          $rgExists = az group exists --name $vaultRg | ConvertFrom-Json
+          if ($rgExists) {
+            # Use explicit principal type to avoid future Graph lookups where possible
+            $rgScope = "/subscriptions/$env:SUBSCRIPTION_ID/resourceGroups/$vaultRg"
+            try {
+              az role assignment create --assignee-object-id $principalId --assignee-principal-type ServicePrincipal --role "Contributor" --scope $rgScope | Out-Null
+              Write-Host "Role assignment created successfully."
+            } catch {
+              Write-Host "Role assignment may already exist or failed to create: $($_.Exception.Message)"
+            }
+          } else {
+            Write-Host "Vault resource group '$vaultRg' does not exist; skipping role assignment. Please ensure the vault resource group exists or create the role assignment manually later."
           }
 
       - name: Upload resolved policy JSON (artifact)
