@@ -105,6 +105,20 @@ stages:
           -VaultSkuName "${{ parameters.vaultSkuName }}" \
           -VaultSkuTier "${{ parameters.vaultSkuTier }}"
         azurePowerShellVersion: 'LatestVersion'
+    - task: PowerShell@2
+      displayName: 'Collect deployment operations on failure'
+      condition: failed()
+      inputs:
+        targetType: 'filePath'
+        filePath: '$(System.DefaultWorkingDirectory)/scripts/Collect-DeploymentOperations.ps1'
+        arguments: '-SubscriptionId "${{ parameters.subscriptionId }}" -ResourceGroupName "${{ parameters.resourceGroupName }}" -DeploymentName main'
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish ops.json artifacts (if any)'
+      condition: failed()
+      inputs:
+        PathtoPublish: '$(System.DefaultWorkingDirectory)'
+        ArtifactName: 'deployment-operations'
+        publishLocation: 'Container'
 
     - task: AzureCLI@2
       displayName: 'Create role assignment for UAI (wait until principal exists)'
