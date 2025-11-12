@@ -15,6 +15,9 @@ This repository provides automated deployment of Recovery Services Vault(s) and 
 	- `recoveryVault.bicep` — creates or references the Recovery Services Vault.
 	- `backupPolicy.bicep` — creates Daily / Weekly / Both backup policy resources and outputs policy names/IDs.
 	- `backupAutoEnablePolicy.bicep` / `autoEnablePolicy.rule.json` — policy definition template/JSON used for DeployIfNotExists automation; the workflow pre-processes placeholders before calling `az policy`.
+	- `userAssignedIdentity.bicep` — creates a user-assigned managed identity in the target resource group and outputs its resource id and principalId. This identity is used for policy remediation so the remediation logic can operate against the Recovery Services Vault.
+	- `roleAssignment.bicep` — gives the user-assigned identity the required RBAC (by default Contributor) at the resource-group scope so it can create protected items in the vault during remediation.
+	- `deploy-policy-subscription.bicep` — a subscription-scoped template that creates the policy assignment (using the user-assigned identity) and a `Microsoft.PolicyInsights/remediations` resource which triggers remediation for existing non-compliant resources.
 - `scripts/` — helper scripts:
 	- `Set-DeploymentParameters.ps1` — builds `main.parameters.json`, validates/normalizes schedule times and weekly days, and ensures daily/weekly retention values are present.
 	- `Create-ResourceGroup.ps1` — creates the target resource group.
@@ -24,6 +27,10 @@ This repository provides automated deployment of Recovery Services Vault(s) and 
 	- `.github/workflows/deploy.yml` — GitHub Actions workflow: prepares parameters, runs `az bicep build` pre-check, validates, deploys resources, and optionally deploys the auto-enable policy.
 	- `azure-pipelines.yml` — Azure DevOps pipeline: same overall flow adapted to ADO tasks; publishes/downloads the generated `main.parameters.json` between jobs and runs a validate pre-check.
 	- `azure-pipelines-audit.yml` — optional audit pipeline for management-group scoped audits.
+
+	Additional CI notes
+	- The resource group deployment (`main.bicep`) now creates a user-assigned identity and a role assignment for that identity. The GitHub Actions and ADO pipelines read the identity id from the group deployment outputs and then run a subscription deployment using `deploy-policy-subscription.bicep` to create the subscription-scoped policy assignment which references the UAI.
+	- `deploy-policy-subscription.bicep` also creates a `Microsoft.PolicyInsights/remediations` resource which runs remediation for ExistingNonCompliant resources (this automatically attempts to protect existing VMs that match the configured tag). The template uses a recent API version for remediations; `az deployment sub validate` will show provider validation errors if any properties need adjustment.
 
 ## Prerequisites
 Common
@@ -41,7 +48,12 @@ For Azure DevOps
 - Location must be consistent: pick the workflow/pipeline `location` input and ensure it's passed to resource group creation and included in `main.parameters.json` so the vault and RG are created in the same region. The GitHub workflow now passes `-IncludeLocation` to the parameter script by default.
 - PowerShell quoting: when calling `az ... --parameters @main.parameters.json` from PowerShell, quote the file string (e.g., `--parameters "@main.parameters.json"`) to avoid PowerShell interpreting `@` as a splat operator. The workflows include a PowerShell-safe validate step.
 - Policy creation and remediation permissions: creating/updating policy definitions and assigning them at subscription or management-group scope requires Policy Contributor or Owner privileges. If the service principal lacks those permissions the policy steps will fail even if the template deploys successfully.
+ - Policy creation and remediation permissions: creating/updating policy definitions and assigning them at subscription or management-group scope requires Policy Contributor or Owner privileges. Creating remediations and role assignments also requires elevated permissions (Owner / User Access Administrator for role assignments). If the service principal lacks those permissions the policy/remediation steps will fail even if the template deploys successfully.
 - `backupFrequency = Both` creates two concrete backup policies: `<policyName>-daily` and `<policyName>-weekly`. If using the auto-remediation policy, point remediation at a specific policy name (for example `DefaultPolicy-daily`) because remediation expects a single policy name to apply.
+
+Remediation behavior
+- The subscription template creates a `remediation` resource (`Microsoft.PolicyInsights/remediations`) with `resourceDiscoveryMode: ExistingNonCompliant`. This causes Azure Policy to evaluate current resources and attempt remediation for any already non-compliant VMs matching the assignment (for example VMs tagged `backup=true`).
+- The remediation runs under the identity assigned to the policy assignment (we use the user-assigned identity created in `main.bicep`). That identity must have RBAC (Contributor or custom least-privilege role) on the Recovery Services Vault resource group so it can create protected items.
 
 ## Quick local validation (recommended before deploy)
 1) Regenerate the parameters file (PowerShell):

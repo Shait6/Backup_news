@@ -25,7 +25,7 @@ resource assignment 'Microsoft.Authorization/policyAssignments@2021-06-01' = {
 }
 
 // Create a remediation that will apply the DeployIfNotExists remediation for existing non-compliant resources.
-resource remediation 'Microsoft.PolicyInsights/remediations@2019-10-01' = {
+resource remediation 'Microsoft.PolicyInsights/remediations@2024-10-01' = {
   name: '${assignment.name}-remediation'
   properties: {
     policyAssignmentId: assignment.id
