@@ -6,13 +6,15 @@ param assignmentName string
 param policyDefinitionName string
 @description('Resource id of the user-assigned identity to use for the assignment (full resource id)')
 param userAssignedIdentityId string
+@description('Azure location for the policy assignment and remediation resources')
+param location string = 'global'
 
 // Resolve the policy definition id from the provided name
 var policyDefinitionId = subscriptionResourceId('Microsoft.Authorization/policyDefinitions', policyDefinitionName)
 
 resource assignment 'Microsoft.Authorization/policyAssignments@2021-06-01' = {
   name: assignmentName
-  location: 'northeurope'
+  location: location
   properties: {
     displayName: 'Enable VM backup for tagged VMs (assignment)'
     policyDefinitionId: policyDefinitionId
@@ -28,7 +30,7 @@ resource assignment 'Microsoft.Authorization/policyAssignments@2021-06-01' = {
 // Create a remediation that will apply the DeployIfNotExists remediation for existing non-compliant resources.
 resource remediation 'Microsoft.PolicyInsights/remediations@2024-10-01' = {
   name: '${assignment.name}-remediation'
-  location: 'northeurope'
+  location: location
   properties: {
     policyAssignmentId: assignment.id
     // ExistingNonCompliant processes existing resources that are non-compliant and attempts remediation.
