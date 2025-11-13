@@ -301,6 +301,7 @@ jobs:
             assignmentName = @{ value = 'enable-vm-backup-assignment' }
             policyDefinitionName = @{ value = $policyName }
             userAssignedIdentityId = @{ value = $identityId }
+            policyDefinitionLocation = @{ value = $env:LOCATION }
           }
           $assignParams | ConvertTo-Json -Depth 10 | Out-File -FilePath assign-params.json -Encoding utf8
 
