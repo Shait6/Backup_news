@@ -310,15 +310,15 @@ jobs:
           $attempt = 1
           $lastError = $null
           while ($attempt -le $maxAttempts) {
-            Write-Host "Attempt $attempt of $maxAttempts: creating subscription deployment '$deployName' in $env:LOCATION"
+            Write-Host ("Attempt {0} of {1}: creating subscription deployment '{2}' in {3}" -f $attempt, $maxAttempts, $deployName, $env:LOCATION)
             try {
               az deployment sub create --name $deployName --template-file deploy-policy-subscription.bicep --location "$env:LOCATION" --parameters "@assign-params.json" | Out-Null
-              Write-Host "Subscription deployment succeeded on attempt $attempt"
+              Write-Host ("Subscription deployment succeeded on attempt {0}" -f $attempt)
               $lastError = $null
               break
             } catch {
               $lastError = $_.Exception.Message
-              Write-Host "Subscription deployment failed on attempt $attempt: $lastError"
+              Write-Host ("Subscription deployment failed on attempt {0}: {1}" -f $attempt, $lastError)
               if ($attempt -lt $maxAttempts) {
                 Write-Host "Waiting 60 seconds before retrying..."
                 Start-Sleep -Seconds 60
