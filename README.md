@@ -1,65 +1,56 @@
 # Azure VM Backup Automation
 
-This repository provides automated deployment of Recovery Services Vault(s) and Backup Policy(ies) for Azure VMs, plus an optional DeployIfNotExists policy that can automatically enable backup for VMs that match a tag (for example `backup=true`). The project is designed to run from either GitHub Actions or Azure DevOps pipelines.
+This repository automates deploying Recovery Services Vaults and Backup Policies for Azure VMs, and optionally enables automatic remediation so tagged VMs (for example those with tag `backup=true`) get protected automatically. The solution is intended to run from either GitHub Actions or Azure DevOps, and is built with Bicep + Azure CLI.
 
-## What this solution does (high level)
-- Generates deployment parameters and normalizes values (schedule times, weekly days, retention counts).
-- Validates and compiles Bicep templates (pre-check) to catch template/schema issues early.
-- Deploys a Recovery Services Vault and one or more backup policies (Daily, Weekly or Both) into a resource group and location you choose.
-- Optionally deploys a subscription-scoped DeployIfNotExists policy that detects unprotected VMs with a specific tag and remediates them by enabling backup with the chosen policy.
+What's included (short)
+- Parameter generation and normalization for backup schedules and retention.
+- Bicep templates with a small set of modules to create vaults, backup policies, a user-assigned identity (UAI), and role assignments.
+- An optional subscription-scoped DeployIfNotExists / remediation flow that uses the UAI to enable backup for existing unprotected VMs matching a tag.
+- Example CI pipelines for GitHub Actions and Azure DevOps that run the full flow.
 
-## Main files and what they do (short)
-- `main.bicep` — Orchestrator: calls modules to create the Recovery Services vault and backup policy resources.
-- `main.parameters.json` — Generated parameters file created by `scripts/Set-DeploymentParameters.ps1` and consumed by `az deployment`.
-- `modules/` — Bicep modules used by the orchestrator:
-	- `recoveryVault.bicep` — creates or references the Recovery Services Vault.
-	- `backupPolicy.bicep` — creates Daily / Weekly / Both backup policy resources and outputs policy names/IDs.
-	- `backupAutoEnablePolicy.bicep` / `autoEnablePolicy.rule.json` — policy definition template/JSON used for DeployIfNotExists automation; the workflow pre-processes placeholders before calling `az policy`.
-	- `userAssignedIdentity.bicep` — creates a user-assigned managed identity in the target resource group and outputs its resource id and principalId. This identity is used for policy remediation so the remediation logic can operate against the Recovery Services Vault.
-	- `roleAssignment.bicep` — gives the user-assigned identity the required RBAC (by default Contributor) at the resource-group scope so it can create protected items in the vault during remediation.
-	- `deploy-policy-subscription.bicep` — a subscription-scoped template that creates the policy assignment (using the user-assigned identity) and a `Microsoft.PolicyInsights/remediations` resource which triggers remediation for existing non-compliant resources.
-- `scripts/` — helper scripts:
-	- `Set-DeploymentParameters.ps1` — builds `main.parameters.json`, validates/normalizes schedule times and weekly days, and ensures daily/weekly retention values are present.
-	- `Create-ResourceGroup.ps1` — creates the target resource group.
-	- `Deploy-Backup.ps1` — wrapper used by ADO to perform the deployment via Az/CLI.
-	- `Deploy-AutoEnablePolicySubscription.ps1` / `Deploy-AuditPolicy.ps1` — scripts to create policy definitions/assignments for remediation or audit.
-- CI workflows/pipelines:
-	- `.github/workflows/deploy.yml` — GitHub Actions workflow: prepares parameters, runs `az bicep build` pre-check, validates, deploys resources, and optionally deploys the auto-enable policy.
-	- `azure-pipelines.yml` — Azure DevOps pipeline: same overall flow adapted to ADO tasks; publishes/downloads the generated `main.parameters.json` between jobs and runs a validate pre-check.
-	- `azure-pipelines-audit.yml` — optional audit pipeline for management-group scoped audits.
+How the solution works (high level)
+1. Generate parameters: `scripts/Set-DeploymentParameters.ps1` builds `main.parameters.json` from inputs and normalizes values (times, days, retention counts).
+2. Validate & build: CI runs `az bicep build` and an ARM/Bicep validate to catch template issues early.
+3. Group deployment: `main.bicep` deploys the Recovery Services Vault and backup policy resources into the chosen resource group and location. It also creates a user-assigned identity and returns its resource id and principal id as outputs.
+4. Role assignment: CI ensures the UAI has the needed RBAC on the vault resource group (so remediation can create protected items).
+5. Subscription assignment & remediation: CI runs a subscription-scoped deployment (`deploy-policy-subscription.bicep`) which creates the policy assignment using the UAI and a `Microsoft.PolicyInsights/remediations` resource to remediate existing non-compliant VMs.
 
-	Additional CI notes
-	- The resource group deployment (`main.bicep`) now creates a user-assigned identity and a role assignment for that identity. The GitHub Actions and ADO pipelines read the identity id from the group deployment outputs and then run a subscription deployment using `deploy-policy-subscription.bicep` to create the subscription-scoped policy assignment which references the UAI.
-	- `deploy-policy-subscription.bicep` also creates a `Microsoft.PolicyInsights/remediations` resource which runs remediation for ExistingNonCompliant resources (this automatically attempts to protect existing VMs that match the configured tag). The template uses a recent API version for remediations; `az deployment sub validate` will show provider validation errors if any properties need adjustment.
+File map — what each file does (short and human)
+- `main.bicep` — top-level orchestrator: wires modules together and outputs useful IDs from the group deployment.
+- `main.parameters.json` — generated by `Set-DeploymentParameters.ps1`; passed to `az deployment` so complex arrays and strings are reliable across shells.
 
-## Prerequisites
-Common
-- An Azure subscription. The identity used by CI must have permissions to create resource groups, vaults and backup policies. If you will create policy definitions/assignments, the identity also needs Policy Contributor or Owner.
-- Azure CLI (`az`) available on the runner or Az PowerShell for ADO tasks that use it. The workflows install `az bicep` if missing.
+- modules/
+	- `recoveryVault.bicep` — creates (or references) the Recovery Services Vault in the target RG and location.
+	- `backupPolicy.bicep` — creates Daily and/or Weekly backup policy resources, with retention and schedule settings.
+	- `userAssignedIdentity.bicep` — creates the user-assigned managed identity used by policy remediations; outputs resource id and principal id.
+	- `roleAssignment.bicep` — helper to give the UAI Contributor rights on the vault RG (so remediation can create protected items).
+	- `deploy-policy-subscription.bicep` — subscription-scoped template that creates the policy assignment and a remediation resource which runs against existing non-compliant VMs.
+	- `backupAutoEnablePolicy.bicep` / `autoEnablePolicy.rule.json` — policy definition template and rule JSON used by the workflows to create the DeployIfNotExists definition (the workflow replaces placeholders like vault name and role definition id before creating the policy).
 
-For GitHub Actions
-- A secret containing service principal credentials (JSON) configured for `azure/login` (the repo uses `${{ secrets.serivcon }}` by default). The SP must have the RBAC noted above.
-- The workflow runs on `windows-latest` and uses `pwsh` for parameter generation and validation; the deployment step runs in `bash` to avoid PowerShell splatting issues.
+- scripts/
+	- `Set-DeploymentParameters.ps1` — central parameter generator (normalize schedule times/days, compute retention values, write `main.parameters.json`).
+	- `Create-ResourceGroup.ps1` — idempotent RG creation helper used by CI.
+	- `Deploy-Backup.ps1` — small wrapper used by the Azure DevOps pipeline to run the group deployment.
+	- `Wait-For-AadPrincipal.ps1` — helper to poll AAD until a service principal for the UAI exists (used to avoid PrincipalNotFound timing errors).
+	- `Deploy-AutoEnablePolicySubscription.ps1` / `Deploy-AuditPolicy.ps1` — legacy/scripted alternatives for policy creation (the pipelines use a param-file + `az deployment sub create` or direct `az policy` commands depending on flow).
 
-For Azure DevOps
-- A service connection (Azure Resource Manager) backed by a service principal with the required permissions. The pipeline uses `AzurePowerShell@5` and `AzureCLI@2` tasks.
+- CI pipelines
+	- `.github/workflows/deploy.yml` — GitHub Actions: parameter generation, bicep build validation, group deployment, role assignment for the UAI, and a subscription deployment to create the policy assignment/remediation. Implemented to avoid shell quoting/path mangling on Windows runners by using PowerShell for param file creation and passing the parameters file to `az`.
+	- `azure-pipelines.yml` — Azure DevOps: mirrors the same flow using `AzurePowerShell@5` and `AzureCLI@2` tasks. The pipeline also writes a parameters JSON and uses PowerShell inline scripts for steps that pass resource ids.
+	- `azure-pipelines-audit.yml` — an optional pipeline for management-group scoped audits (keeps audits separate from infra deployment).
 
-## Important behavior and gotchas
-- Location must be consistent: pick the workflow/pipeline `location` input and ensure it's passed to resource group creation and included in `main.parameters.json` so the vault and RG are created in the same region. The GitHub workflow now passes `-IncludeLocation` to the parameter script by default.
-- PowerShell quoting: when calling `az ... --parameters @main.parameters.json` from PowerShell, quote the file string (e.g., `--parameters "@main.parameters.json"`) to avoid PowerShell interpreting `@` as a splat operator. The workflows include a PowerShell-safe validate step.
-- Policy creation and remediation permissions: creating/updating policy definitions and assigning them at subscription or management-group scope requires Policy Contributor or Owner privileges. If the service principal lacks those permissions the policy steps will fail even if the template deploys successfully.
- - Policy creation and remediation permissions: creating/updating policy definitions and assigning them at subscription or management-group scope requires Policy Contributor or Owner privileges. Creating remediations and role assignments also requires elevated permissions (Owner / User Access Administrator for role assignments). If the service principal lacks those permissions the policy/remediation steps will fail even if the template deploys successfully.
-- `backupFrequency = Both` creates two concrete backup policies: `<policyName>-daily` and `<policyName>-weekly`. If using the auto-remediation policy, point remediation at a specific policy name (for example `DefaultPolicy-daily`) because remediation expects a single policy name to apply.
+Important operational notes and gotchas
+- Vaults are regional. To protect a VM you must create the RSV in the same region as the VM. If you have VMs in multiple regions you must either create multiple vaults (one per region) or make the remediation template create/target a vault in the VM's region (using `field('location')`).
+- MSYS/Git Bash path mangling: on Windows runners, leading-slash resource ids like `/subscriptions/...` can be turned into `C:/Program Files/Git/...` by MSYS. To avoid this, the pipelines pass parameters via a JSON file written by PowerShell and call `az ... --parameters "@file.json"`.
+- AAD propagation: after creating a user-assigned identity ARM resource, its service principal can take a short while to appear in AAD. The pipelines use `Wait-For-AadPrincipal.ps1` and a retry/backoff when creating the subscription-scoped deployment to reduce intermittent IdentityServiceUnavailable or PrincipalNotFound failures.
+- Permissions: creating policy definitions, assignments and remediations requires elevated rights (Policy Contributor or Owner). Creating role assignments may require User Access Administrator or Owner. Ensure your CI service principal has the necessary roles.
 
-Remediation behavior
-- The subscription template creates a `remediation` resource (`Microsoft.PolicyInsights/remediations`) with `resourceDiscoveryMode: ExistingNonCompliant`. This causes Azure Policy to evaluate current resources and attempt remediation for any already non-compliant VMs matching the assignment (for example VMs tagged `backup=true`).
-- The remediation runs under the identity assigned to the policy assignment (we use the user-assigned identity created in `main.bicep`). That identity must have RBAC (Contributor or custom least-privilege role) on the Recovery Services Vault resource group so it can create protected items.
-
-## Quick local validation (recommended before deploy)
-1) Regenerate the parameters file (PowerShell):
+Quick validation steps (local)
+1) Regenerate parameters (PowerShell):
 
 ```powershell
-.\scripts\Set-DeploymentParameters.ps1 `
+.
+\scripts\Set-DeploymentParameters.ps1 `
 	-Location 'eastus' `
 	-SubscriptionId '<SUB_ID>' `
 	-VaultName 'rsv-backup-test' `
@@ -71,24 +62,26 @@ Remediation behavior
 	-IncludeLocation
 ```
 
-2) Validate the deployment with PowerShell-safe parameters quoting:
+2) Validate the group deployment (PowerShell-safe parameters quoting):
 
 ```powershell
 az account set --subscription <SUB_ID>
 az deployment group validate --resource-group <RG_NAME> --template-file main.bicep --parameters "@main.parameters.json"
 ```
 
-If validation fails, copy the CLI output (the provider `statusMessage` JSON) and paste it into an issue or here — that message pinpoints the exact property Azure rejects (schedule time, days, retention schema, etc.).
+If validation fails, capture the full JSON output for the failing operation (the provider `statusMessage`) and use it to pinpoint which property the Recovery Services API expects.
 
-## Running in CI
-- GitHub Actions: dispatch `deploy.yml` from the Actions UI or trigger via workflow_dispatch. Supply `subscriptionId`, `location`, `resourceGroupName` and other inputs shown in the workflow. The workflow runs a `bicep build` pre-check and then performs the deployment.
-- Azure DevOps: run the `azure-pipelines.yml` pipeline with equivalent parameters. The pipeline runs parameter generation and a group deployment; it does not publish build artifacts by default.
+Troubleshooting tips
+- If you see IdentityServiceUnavailable or PrincipalNotFound errors, re-run the `az ad sp show --id <principalId>` command from the same credentials used by CI — if it returns not-found, wait/poll until it exists and retry the subscription deployment.
+- If you see InvalidDeploymentLocation for `assign-policy`, it usually means a previous subscription deployment with the same name exists in a different region. Either delete the old subscription deployment (`az deployment sub delete --name assign-policy`) or configure the pipeline to use a unique deployment name per run.
 
-## Audit pipeline
-The audit policy deployment is separated into `azure-pipelines-audit.yml` so you can run audits at management-group scope without affecting the main infra pipeline. Use it to detect unprotected VMs across your management group and optionally run remediation separately.
+How to extend or adapt
+- Multi-region: either pre-create a vault per region and teach the remediation to pick the regional vault, or modify the remediation template to deploy the vault into the resource's region using `field('location')`.
+- Least privilege: instead of granting Contributor on the entire subscription you can limit the UAI's Contributor role to specific vault resource groups.
 
-## Need help diagnosing a validation error?
-- Run the local validation command above and copy the JSON `statusMessage` from a failed validation. Paste it here and I will identify which property/formattings the Recovery Services API expects and propose a precise fix.
+If you'd like, I can help make any of the following small, safe edits:
+- Make subscription deployment names unique per run to avoid location conflicts.
+- Harden retries to only retry for identity-related errors.
+- Add a short diagnostic output on failure that prints `az deployment sub operation list --name <deploy>` to capture provider `statusMessage` for debugging.
 
---
-If you want, I can also add a short `USAGE.md` with ready-to-paste GitHub Actions dispatch examples and Azure DevOps pipeline run examples — tell me which and I will add it.
+That's a concise overview — if you want, tell me which small change above to make and I'll apply it and validate the pipeline files.

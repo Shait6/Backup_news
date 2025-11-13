@@ -111,25 +111,25 @@ stages:
       displayName: 'Create role assignment for UAI (wait until principal exists)'
       inputs:
         azureSubscription: 'bicep_deploy_SC'
-        scriptType: 'bash'
+        scriptType: 'ps'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          set -euo pipefail
-          rgName="${{ parameters.resourceGroupName }}"
-          # read outputs from group deployment
-          identityPrincipal=$(az deployment group show --name main --resource-group "$rgName" --query properties.outputs.userAssignedIdentityPrincipalId.value -o tsv || true)
-          identityId=$(az deployment group show --name main --resource-group "$rgName" --query properties.outputs.userAssignedIdentityId.value -o tsv || true)
-          if [ -z "$identityPrincipal" ] || [ -z "$identityId" ]; then
-            echo "Failed to resolve identity outputs from group deployment"
-            exit 1
-          fi
+          $rgName = "${{ parameters.resourceGroupName }}"
 
-          echo "Waiting for AAD replication for principal $identityPrincipal (helper script)"
+          # read outputs from group deployment
+          $identityPrincipal = az deployment group show --name main --resource-group $rgName --query properties.outputs.userAssignedIdentityPrincipalId.value -o tsv
+          $identityId = az deployment group show --name main --resource-group $rgName --query properties.outputs.userAssignedIdentityId.value -o tsv
+          if (-not $identityPrincipal -or -not $identityId) {
+            Write-Error "Failed to resolve identity outputs from group deployment"
+            exit 1
+          }
+
+          Write-Host "Waiting for AAD replication for principal $identityPrincipal (helper script)"
           pwsh ./scripts/Wait-For-AadPrincipal.ps1 -PrincipalId $identityPrincipal -TimeoutSeconds 180
 
-          roleGuid='b24988ac-6180-42a0-ab88-20f7382dd24c'
-          roleId="/subscriptions/${{ parameters.subscriptionId }}/providers/Microsoft.Authorization/roleDefinitions/$roleGuid"
-          az deployment group create --name assign-role --resource-group "$rgName" --template-file deploy-role-assignment.bicep --parameters principalId="$identityPrincipal" roleDefinitionId="$roleId"
+          $roleGuid = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
+          $roleId = "/subscriptions/${{ parameters.subscriptionId }}/providers/Microsoft.Authorization/roleDefinitions/$roleGuid"
+          az deployment group create --name assign-role --resource-group $rgName --template-file deploy-role-assignment.bicep --parameters principalId=$identityPrincipal roleDefinitionId=$roleId
     - task: AzureCLI@2
       displayName: 'Validate deployment (pre-check)'
       inputs:
@@ -233,4 +233,30 @@ stages:
           }
           $assignParams | ConvertTo-Json -Depth 10 | Out-File -FilePath assign-params.json -Encoding utf8
 
-          az deployment sub create --location "${{ parameters.location }}" --name assign-policy --template-file deploy-policy-subscription.bicep --parameters "@assign-params.json"
+          # Use a unique deployment name per pipeline run to avoid location collisions with previous runs
+          $deployName = "assign-policy-$env:BUILD_BUILDID"
+
+          $maxAttempts = 3
+          $attempt = 1
+          $lastError = $null
+          while ($attempt -le $maxAttempts) {
+            Write-Host ("Attempt {0} of {1}: creating subscription deployment '{2}' in {3}" -f $attempt, $maxAttempts, $deployName, "${{ parameters.location }}")
+            try {
+              az deployment sub create --location "${{ parameters.location }}" --name $deployName --template-file deploy-policy-subscription.bicep --parameters "@assign-params.json" | Out-Null
+              Write-Host ("Subscription deployment succeeded on attempt {0}" -f $attempt)
+              $lastError = $null
+              break
+            } catch {
+              $lastError = $_.Exception.Message
+              Write-Host ("Subscription deployment failed on attempt {0}: {1}" -f $attempt, $lastError)
+              if ($attempt -lt $maxAttempts) {
+                Write-Host "Waiting 60 seconds before retrying..."
+                Start-Sleep -Seconds 60
+              }
+            }
+            $attempt++
+          }
+          if ($lastError) {
+            Write-Error "Subscription deployment failed after $maxAttempts attempts: $lastError"
+            exit 1
+          }
