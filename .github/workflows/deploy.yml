@@ -304,4 +304,31 @@ jobs:
           }
           $assignParams | ConvertTo-Json -Depth 10 | Out-File -FilePath assign-params.json -Encoding utf8
 
-          az deployment sub create --name assign-policy --template-file deploy-policy-subscription.bicep --location "$env:LOCATION" --parameters "@assign-params.json"
+          # Try the subscription deployment, and if it fails with identity-related errors, wait 60s and retry once.
+          $deployName = 'assign-policy'
+          $maxAttempts = 2
+          $attempt = 1
+          $lastError = $null
+          while ($attempt -le $maxAttempts) {
+            Write-Host "Attempt $attempt of $maxAttempts: creating subscription deployment '$deployName' in $env:LOCATION"
+            try {
+              az deployment sub create --name $deployName --template-file deploy-policy-subscription.bicep --location "$env:LOCATION" --parameters "@assign-params.json" | Out-Null
+              Write-Host "Subscription deployment succeeded on attempt $attempt"
+              $lastError = $null
+              break
+            } catch {
+              $lastError = $_.Exception.Message
+              Write-Host "Subscription deployment failed on attempt $attempt: $lastError"
+              if ($attempt -lt $maxAttempts) {
+                Write-Host "Waiting 60 seconds before retrying..."
+                Start-Sleep -Seconds 60
+              }
+            }
+            $attempt++
+          }
+
+          if ($lastError) {
+            Write-Error "Subscription deployment failed after $maxAttempts attempts: $lastError"
+            # Re-throw to fail the job with the last error message
+            exit 1
+          }
