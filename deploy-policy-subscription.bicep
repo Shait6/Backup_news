@@ -7,7 +7,7 @@ param policyDefinitionName string
 @description('Resource id of the user-assigned identity to use for the assignment (full resource id)')
 param userAssignedIdentityId string
 @description('Azure location for the policy assignment and remediation resources')
-param location string = 'global'
+param location string
 
 // Resolve the policy definition id from the provided name
 var policyDefinitionId = subscriptionResourceId('Microsoft.Authorization/policyDefinitions', policyDefinitionName)
