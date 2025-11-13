@@ -12,6 +12,7 @@ var policyDefinitionId = subscriptionResourceId('Microsoft.Authorization/policyD
 
 resource assignment 'Microsoft.Authorization/policyAssignments@2021-06-01' = {
   name: assignmentName
+  location: 'northeurope'
   properties: {
     displayName: 'Enable VM backup for tagged VMs (assignment)'
     policyDefinitionId: policyDefinitionId
@@ -27,6 +28,7 @@ resource assignment 'Microsoft.Authorization/policyAssignments@2021-06-01' = {
 // Create a remediation that will apply the DeployIfNotExists remediation for existing non-compliant resources.
 resource remediation 'Microsoft.PolicyInsights/remediations@2024-10-01' = {
   name: '${assignment.name}-remediation'
+  location: 'northeurope'
   properties: {
     policyAssignmentId: assignment.id
     // ExistingNonCompliant processes existing resources that are non-compliant and attempts remediation.
