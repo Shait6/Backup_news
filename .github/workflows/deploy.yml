@@ -280,24 +280,28 @@ jobs:
       # 🧩 Deploy subscription-scoped policy assignment using the user-assigned identity created in the resource group deployment
       - name: Deploy subscription-scoped policy assignment using UAI
         if: ${{ env.ENABLE_AUTO_REMEDIATION == 'true' }}
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          az account set --subscription "$SUBSCRIPTION_ID"
+          # Use PowerShell to avoid MSYS path conversion on Windows runners when passing leading-slash resource ids
+          az account set --subscription "$env:SUBSCRIPTION_ID"
 
-          echo "Retrieving user-assigned identity resource id from resource group deployment outputs..."
-          identityId=$(az deployment group show --name main --resource-group "$RESOURCE_GROUP_NAME" --query properties.outputs.userAssignedIdentityId.value -o tsv)
-          if [ -z "${identityId}" ]; then
-            echo "Failed to resolve user-assigned identity id from deployment outputs."
+          Write-Host 'Retrieving user-assigned identity resource id from resource group deployment outputs...'
+          $identityId = az deployment group show --name main --resource-group "$env:RESOURCE_GROUP_NAME" --query properties.outputs.userAssignedIdentityId.value -o tsv
+          if (-not $identityId) {
+            Write-Error 'Failed to resolve user-assigned identity id from deployment outputs.'
             exit 1
-          fi
-          echo "Found identity: $identityId"
+          }
+          Write-Host "Found identity: $identityId"
 
           # Ensure the policy definition exists (created earlier by the preprocessing step)
-          policyName='deployifnotexists-enable-vm-backup'
-          echo "Creating subscription deployment to assign policy using UAI..."
-          az deployment sub create \
-            --name assign-policy \
-            --template-file deploy-policy-subscription.bicep \
-            --location "$LOCATION" \
-            --parameters assignmentName='enable-vm-backup-assignment' policyDefinitionName=$policyName userAssignedIdentityId="$identityId"
+          $policyName = 'deployifnotexists-enable-vm-backup'
+          Write-Host 'Creating subscription deployment to assign policy using UAI...'
+
+          $assignParams = @{ 
+            assignmentName = @{ value = 'enable-vm-backup-assignment' }
+            policyDefinitionName = @{ value = $policyName }
+            userAssignedIdentityId = @{ value = $identityId }
+          }
+          $assignParams | ConvertTo-Json -Depth 10 | Out-File -FilePath assign-params.json -Encoding utf8
+
+          az deployment sub create --name assign-policy --template-file deploy-policy-subscription.bicep --location "$env:LOCATION" --parameters "@assign-params.json"
